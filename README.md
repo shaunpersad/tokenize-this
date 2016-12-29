@@ -84,7 +84,7 @@ equals(tokens, ['Hi', '!', ',', 'I', 'want', 'to', 'add', 5, '+', 6]);
 
 ### Supplying a config object to the constructor
 
-#### See ".defaultConfig" in the #API section for all options
+#### See [here](#defaultconfigobject) for all options
 
 This can be used to tokenize many forms of data, like JSON into key-value pairs.
 

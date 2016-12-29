@@ -107,7 +107,7 @@ describe('TokenizeThis', function() {
 
         describe('Supplying a config object to the constructor', function() {
 
-            describe('See ".defaultConfig" in the #API section for all options', function() {
+            describe('See [here](#defaultconfigobject) for all options', function() {
 
                 it('This can be used to tokenize many forms of data, like JSON into key-value pairs', function() {
 
