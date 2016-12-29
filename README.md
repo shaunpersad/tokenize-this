@@ -2,7 +2,7 @@
 
 ## What is it?
 
-It turns a string into tokens!.
+It turns a string into tokens!
 
 ```js
 var tokenizer = new TokenizeThis();
