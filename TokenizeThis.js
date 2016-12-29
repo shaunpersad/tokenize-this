@@ -433,7 +433,7 @@ class TokenizeThis {
      */
     static get defaultConfig() {
 
-        return defaultConfig;
+        return JSON.parse(JSON.stringify(defaultConfig));
     }
 }
 
