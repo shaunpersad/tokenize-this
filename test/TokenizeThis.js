@@ -134,7 +134,7 @@ describe('TokenizeThis', function() {
                 it('Here it is tokenizing XML like a boss', function() {
 
                     var xmlConfig = {
-                        shouldTokenize: ['<?', '?>', '<!', '<', '</', '>', '='],
+                        shouldTokenize: ['<?', '?>', '<!', '<', '</', '>', '/>', '='],
                         shouldMatch: ['"'],
                         shouldDelimitBy: [' ', "\n", "\r", "\t"],
                         convertLiterals: true
@@ -167,7 +167,7 @@ describe('TokenizeThis', function() {
                             '<!', 'DOCTYPE', 'catalog', 'SYSTEM', 'catalog.dtd', '>',
                             '<', 'catalog', '>',
                             '<', 'product', 'description', '=', 'Cardigan Sweater', 'product_image', '=', 'cardigan.jpg', '>',
-                            '<', 'size', 'description', '=', 'Large', '/', '>',
+                            '<', 'size', 'description', '=', 'Large', '/>',
                             '<', 'color_swatch', 'image', '=', 'red_cardigan.jpg', '>',
                             'Red',
                             '</', 'color_swatch', '>',
