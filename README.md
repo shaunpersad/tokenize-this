@@ -4,6 +4,8 @@
 
 It turns a string into tokens.
 
+E.g.:
+
 ```js
 var tokenizer = new TokenizeThis();
 var str = 'Tokenize this!';
