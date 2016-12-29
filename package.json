@@ -1,0 +1,41 @@
+{
+  "name": "tokenize-this",
+  "version": "1.0.0",
+  "description": "Turns a string into tokens.",
+  "main": "tokenize-this.min.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "./node_modules/mocha/bin/mocha --recursive --reporter=markdown"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaunpersad/tokenize-this.git"
+  },
+  "keywords": [
+    "string",
+    "tokenizer",
+    "sql",
+    "math",
+    "json"
+  ],
+  "author": "Shaun Persad <shaunpersad@gmail.com> (http://inspirationjs.io)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shaunpersad/tokenize-this/issues"
+  },
+  "homepage": "https://github.com/shaunpersad/tokenize-this#readme",
+  "devDependencies": {
+    "babel-preset-es2015": "^6.18.0",
+    "babelify": "^7.3.0",
+    "browserify": "^13.1.1",
+    "gulp": "^3.9.1",
+    "gulp-concat": "^2.6.1",
+    "gulp-uglify": "^2.0.0",
+    "mocha": "^3.2.0",
+    "should": "^11.1.2",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
+  }
+}
