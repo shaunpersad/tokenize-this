@@ -1,6 +1,5 @@
-<a name="tokenizethis"></a>
 # TokenizeThis
-<a name="tokenizethis-what-is-it"></a>
+
 ## What is it?
 It turns a string into tokens!.
 
@@ -54,17 +53,13 @@ equals(tokens, [
 ]);
 ```
 
-<a name="tokenizethis-installation"></a>
-## Installation
-`npm install tokenize-this`.
+## Installation `npm install tokenize-this`.
 
 ```js
 // or if in the browser: <script src="tokenize-this/tokenize-this.min.js"></script>
 ```
 
-<a name="tokenizethis-usage"></a>
-## Usage
-`require` it, create a new instance, then call `tokenize`.
+## Usage `require` it, create a new instance, then call `tokenize`.
 
 ```js
 // var TokenizeThis = require('tokenize-this');
@@ -78,11 +73,11 @@ tokenizer.tokenize(str, function(token) {
 equals(tokens, ['Hi', '!', ',', 'I', 'want', 'to', 'add', 5, '+', 6]);
 ```
 
-<a name="tokenizethis-advanced-usage"></a>
 ## Advanced Usage
-<a name="tokenizethis-advanced-usage-supplying-a-config-object-to-the-constructor-is-also-possible-see-defaultconfig-in-the-api-section-for-all-options"></a>
-### Supplying a config object to the constructor is also possible (see ".defaultConfig" in the #API section for all options)
-This can be used to parse many forms of data, like JSON into key-value pairs.
+
+### Supplying a config object to the constructor is also possible (see [here](#defaultconfigobject) for all options)
+
+This can be used to parse other forms of data, like JSON into key-value pairs.
 
 ```js
 var jsonConfig = {
@@ -99,10 +94,10 @@ tokenizer.tokenize(str, function(token) {
 equals(tokens, ['[', '{', 'name', 'Shaun Persad', 'id', 5, '}', '{', 'gender', null, '}', ']']);
 ```
 
-<a name="tokenizethis-api"></a>
 ## API
-<a name="tokenizethis-api-tokenizestrstring-foreachtokentoken-surroundedbystringfunction"></a>
-### #tokenize(str:String, forEachToken(token:*, surroundedBy:String):Function)
+
+### #tokenize(str:String, forEachToken(token:*, surroundedBy:String):Function) 
+
 sends each token to the `forEachToken` callback.
 
 ```js
@@ -128,8 +123,8 @@ tokenizer.tokenize(str, function(token, surroundedBy) {
 equals(tokens, [true, false, null, true, false, null, 1, 2, 3.4, 5.6789]);
 ```
 
-<a name="tokenizethis-api-defaultconfigobject"></a>
 ### .defaultConfig:Object
+
 The default config object used when no config is supplied.
 
 ```js
