@@ -53,13 +53,17 @@ equals(tokens, [
 ]);
 ```
 
-## Installation `npm install tokenize-this`.
+## Installation 
+
+`npm install tokenize-this`.
 
 ```js
 // or if in the browser: <script src="tokenize-this/tokenize-this.min.js"></script>
 ```
 
-## Usage `require` it, create a new instance, then call `tokenize`.
+## Usage 
+
+`require` it, create a new instance, then call `tokenize`.
 
 ```js
 // var TokenizeThis = require('tokenize-this');
