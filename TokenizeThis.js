@@ -137,7 +137,7 @@ class Tokenizer {
 
         let surroundedBy = '';
 
-        if (this.getCurrentMode() !== MODE_MATCH) {
+        if (this.factory.convertLiterals && this.getCurrentMode() !== MODE_MATCH) {
 
             /**
              * Convert the string version of literals into their...literal..form.
@@ -212,7 +212,7 @@ class Tokenizer {
         }
 
         this.setCurrentMode(MODE_MATCH);
-        return this.toMatch = chr;
+        this.toMatch = chr;
     }
 
     /**
@@ -225,6 +225,12 @@ class Tokenizer {
         if (this.factory.delimiterMap[chr]) {
 
             return this.completeCurrentMode();
+        }
+        
+        if (this.factory.matchMap[chr]) {
+            
+            this.completeCurrentMode();
+            return this.consume(chr);
         }
 
         this.currentToken+=chr;
@@ -299,7 +305,8 @@ class Tokenizer {
 
         if (chr === this.toMatch) {
 
-            if (this.previousChr !== "\\") {
+            if (this.previousChr !== this.factory.escapeCharacter) {
+
                 return this.completeCurrentMode();
             }
             this.currentToken = this.currentToken.substring(0, this.currentToken.length - 1);
@@ -328,9 +335,21 @@ class TokenizeThis {
 
         /**
          *
-         * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
+         * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[], convertLiterals: boolean, escapeCharacter: string}}
          */
         config = Object.assign({}, this.constructor.defaultConfig, config);
+
+        /**
+         *
+         * @type {boolean}
+         */
+        this.convertLiterals = config.convertLiterals;
+
+        /**
+         * 
+         * @type {string}
+         */
+        this.escapeCharacter = config.escapeCharacter;
 
         /**
          * Holds the list of tokenizable substrings.
@@ -418,14 +437,16 @@ class TokenizeThis {
 
     /**
      *
-     * @returns {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
+     * @returns {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[], convertLiterals: boolean, escapeCharacter: string}}
      */
     static get defaultConfig() {
 
         return {
             shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
-                shouldMatch: ['"', "'", '`'],
-                shouldDelimitBy: [' ', "\n", "\r", "\t"]
+            shouldMatch: ['"', "'", '`'],
+            shouldDelimitBy: [' ', "\n", "\r", "\t"],
+            convertLiterals: true,
+            escapeCharacter: "\\"
         };
     }
 }

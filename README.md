@@ -1,6 +1,7 @@
 # TokenizeThis
 
 ## What is it?
+
 It turns a string into tokens!.
 
 ```js
@@ -53,7 +54,8 @@ equals(tokens, [
 ]);
 ```
 
-## Installation 
+
+## Installation
 
 `npm install tokenize-this`.
 
@@ -61,7 +63,7 @@ equals(tokens, [
 // or if in the browser: <script src="tokenize-this/tokenize-this.min.js"></script>
 ```
 
-## Usage 
+## Usage
 
 `require` it, create a new instance, then call `tokenize`.
 
@@ -77,17 +79,21 @@ tokenizer.tokenize(str, function(token) {
 equals(tokens, ['Hi', '!', ',', 'I', 'want', 'to', 'add', 5, '+', 6]);
 ```
 
+
 ## Advanced Usage
 
-### Supplying a config object to the constructor is also possible (see [here](#defaultconfigobject) for all options)
+### Supplying a config object to the constructor
 
-This can be used to parse other forms of data, like JSON into key-value pairs.
+#### See ".defaultConfig" in the #API section for all options
+
+This can be used to tokenize many forms of data, like JSON into key-value pairs.
 
 ```js
 var jsonConfig = {
     shouldTokenize: ['{', '}', '[', ']'],
     shouldMatch: ['"'],
-    shouldDelimitBy: [' ', "\n", "\r", "\t", ':', ',']
+    shouldDelimitBy: [' ', "\n", "\r", "\t", ':', ','],
+    convertLiterals: true
 };
 var tokenizer = new TokenizeThis(jsonConfig);
 var str = '[{name:"Shaun Persad", id: 5}, { gender : null}]';
@@ -98,11 +104,58 @@ tokenizer.tokenize(str, function(token) {
 equals(tokens, ['[', '{', 'name', 'Shaun Persad', 'id', 5, '}', '{', 'gender', null, '}', ']']);
 ```
 
+Here it is tokenizing XML like a boss.
+
+```js
+var xmlConfig = {
+    shouldTokenize: ['<?', '?>', '<!', '<', '</', '>', '='],
+    shouldMatch: ['"'],
+    shouldDelimitBy: [' ', "\n", "\r", "\t"],
+    convertLiterals: true
+};
+var tokenizer = new TokenizeThis(xmlConfig);
+var str = `
+<?xml-stylesheet href="catalog.xsl" type="text/xsl"?>
+<!DOCTYPE catalog SYSTEM "catalog.dtd">
+<catalog>
+   <product description="Cardigan Sweater" product_image="cardigan.jpg">
+      <size description="Large" />
+      <color_swatch image="red_cardigan.jpg">
+        Red
+      </color_swatch>
+   </product>
+</catalog>                
+`;
+var tokens = [];
+tokenizer.tokenize(str, function(token) {
+    tokens.push(token);
+});
+equals(tokens,
+    [
+        '<?', 'xml-stylesheet', 'href', '=', 'catalog.xsl', 'type', '=', 'text/xsl', '?>',
+        '<!', 'DOCTYPE', 'catalog', 'SYSTEM', 'catalog.dtd', '>',
+        '<', 'catalog', '>',
+        '<', 'product', 'description', '=', 'Cardigan Sweater', 'product_image', '=', 'cardigan.jpg', '>',
+        '<', 'size', 'description', '=', 'Large', '/', '>',
+        '<', 'color_swatch', 'image', '=', 'red_cardigan.jpg', '>',
+        'Red',
+        '</', 'color_swatch', '>',
+        '</', 'product', '>',
+        '</', 'catalog', '>'
+    ]
+);
+```
+
+The above examples are the first steps in writing parsers for those formats. The next would be parsing the stream of tokens based on the format-specific rules, e.g. [SQL](https://github.com/shaunpersad/sql-where-parser).
+
+
 ## API
 
-### #tokenize(str:String, forEachToken(token:*, surroundedBy:String):Function) 
+### Methods
 
-sends each token to the `forEachToken` callback.
+#### #tokenize(str:String, forEachToken:Function)
+
+sends each token to the `forEachToken(token:String, surroundedBy:String)` callback.
 
 ```js
 var tokenizer = new TokenizeThis();
@@ -115,7 +168,7 @@ tokenizer.tokenize(str, forEachToken);
 equals(tokens, ['Tokenize', '"this"', '!']);
 ```
 
-converts `true`, `false`, `null`, and numbers into their literal versions.
+it converts `true`, `false`, `null`, and numbers into their literal versions.
 
 ```js
 var tokenizer = new TokenizeThis();
@@ -127,7 +180,7 @@ tokenizer.tokenize(str, function(token, surroundedBy) {
 equals(tokens, [true, false, null, true, false, null, 1, 2, 3.4, 5.6789]);
 ```
 
-### .defaultConfig:Object
+#### .defaultConfig:Object
 
 The default config object used when no config is supplied.
 
@@ -135,8 +188,70 @@ The default config object used when no config is supplied.
 var config = {
     shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
     shouldMatch: ['"', "'", '`'],
-    shouldDelimitBy: [' ', "\n", "\r", "\t"]
+    shouldDelimitBy: [' ', "\n", "\r", "\t"],
+    convertLiterals: true,
+    escapeCharacter: "\\"
 };
-
 equals(TokenizeThis.defaultConfig, config);
+```
+
+You can change converting to literals with the `convertLiterals` config option.
+
+```js
+var config = {
+    convertLiterals: false
+};
+var tokenizer = new TokenizeThis(config);
+var str = 'true false null TRUE FALSE NULL 1 2 3.4 5.6789';
+var tokens = [];
+tokenizer.tokenize(str, function(token, surroundedBy) {
+    tokens.push(token);
+});
+equals(tokens, ['true', 'false', 'null', 'TRUE', 'FALSE', 'NULL', '1', '2', '3.4', '5.6789']);
+```
+
+Any strings surrounded by the quotes specified in the `shouldMatch` option are treated as whole tokens.
+
+```js
+var config = {
+    shouldMatch: ['"', '`', '#']
+};
+var tokenizer = new TokenizeThis(config);
+var str = '"hi there" `this is a test` #of quotes#';
+var tokens = [];
+var tokensQuoted = [];
+tokenizer.tokenize(str, function(token, surroundedBy) {
+    tokens.push(token);
+    tokensQuoted.push(surroundedBy+token+surroundedBy);
+});
+equals(tokens, ['hi there', 'this is a test', 'of quotes']);
+equals(tokensQuoted, ['"hi there"', '`this is a test`', '#of quotes#']);
+```
+
+Quotes can be escaped via a backslash.
+
+```js
+var tokenizer = new TokenizeThis();
+var str = 'These are "\\"quotes\\""';
+var tokens = [];
+tokenizer.tokenize(str, function(token, surroundedBy) {
+    tokens.push(token);
+});
+
+equals(tokens, ['These', 'are', '"quotes"']);
+```
+
+The escape character can be specified with the `escapeCharacter` option.
+
+```js
+var config = {
+    escapeCharacter: '#'
+};
+var tokenizer = new TokenizeThis(config);
+var str = 'These are "#"quotes#""';
+var tokens = [];
+tokenizer.tokenize(str, function(token, surroundedBy) {
+    tokens.push(token);
+});
+equals(tokens, ['These', 'are', '"quotes"']);
 ```

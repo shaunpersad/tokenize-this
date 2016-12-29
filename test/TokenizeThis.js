@@ -105,78 +105,209 @@ describe('TokenizeThis', function() {
 
     describe('Advanced Usage', function() {
 
-        describe('Supplying a config object to the constructor is also possible (see ".defaultConfig" in the #API section for all options)', function() {
+        describe('Supplying a config object to the constructor', function() {
 
-            it('This can be used to parse many forms of data, like JSON into key-value pairs', function() {
-                
-                var jsonConfig = {
-                    shouldTokenize: ['{', '}', '[', ']'],
-                    shouldMatch: ['"'],
-                    shouldDelimitBy: [' ', "\n", "\r", "\t", ':', ',']
-                };
+            describe('See ".defaultConfig" in the #API section for all options', function() {
 
-                var tokenizer = new TokenizeThis(jsonConfig);
+                it('This can be used to tokenize many forms of data, like JSON into key-value pairs', function() {
 
-                var str = '[{name:"Shaun Persad", id: 5}, { gender : null}]';
+                    var jsonConfig = {
+                        shouldTokenize: ['{', '}', '[', ']'],
+                        shouldMatch: ['"'],
+                        shouldDelimitBy: [' ', "\n", "\r", "\t", ':', ','],
+                        convertLiterals: true
+                    };
 
-                var tokens = [];
+                    var tokenizer = new TokenizeThis(jsonConfig);
 
-                tokenizer.tokenize(str, function(token) {
-                    tokens.push(token);
+                    var str = '[{name:"Shaun Persad", id: 5}, { gender : null}]';
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token) {
+                        tokens.push(token);
+                    });
+
+                    equals(tokens, ['[', '{', 'name', 'Shaun Persad', 'id', 5, '}', '{', 'gender', null, '}', ']']);
                 });
 
-                equals(tokens, ['[', '{', 'name', 'Shaun Persad', 'id', 5, '}', '{', 'gender', null, '}', ']']);
+                it('Here it is tokenizing XML like a boss', function() {
+
+                    var xmlConfig = {
+                        shouldTokenize: ['<?', '?>', '<!', '<', '</', '>', '='],
+                        shouldMatch: ['"'],
+                        shouldDelimitBy: [' ', "\n", "\r", "\t"],
+                        convertLiterals: true
+                    };
+
+                    var tokenizer = new TokenizeThis(xmlConfig);
+
+                    var str = `
+                    <?xml-stylesheet href="catalog.xsl" type="text/xsl"?>
+                    <!DOCTYPE catalog SYSTEM "catalog.dtd">
+                    <catalog>
+                       <product description="Cardigan Sweater" product_image="cardigan.jpg">
+                          <size description="Large" />
+                          <color_swatch image="red_cardigan.jpg">
+                            Red
+                          </color_swatch>
+                       </product>
+                    </catalog>                
+                `;
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token) {
+                        tokens.push(token);
+                    });
+
+                    equals(tokens,
+                        [
+                            '<?', 'xml-stylesheet', 'href', '=', 'catalog.xsl', 'type', '=', 'text/xsl', '?>',
+                            '<!', 'DOCTYPE', 'catalog', 'SYSTEM', 'catalog.dtd', '>',
+                            '<', 'catalog', '>',
+                            '<', 'product', 'description', '=', 'Cardigan Sweater', 'product_image', '=', 'cardigan.jpg', '>',
+                            '<', 'size', 'description', '=', 'Large', '/', '>',
+                            '<', 'color_swatch', 'image', '=', 'red_cardigan.jpg', '>',
+                            'Red',
+                            '</', 'color_swatch', '>',
+                            '</', 'product', '>',
+                            '</', 'catalog', '>'
+                        ]
+                    );
+                });
+
+                it('The above examples are the first steps in writing parsers for those formats. The next would be parsing the stream of tokens based on the format-specific rules, e.g. [SQL](https://github.com/shaunpersad/sql-where-parser)', function() {
+
+                });
             });
         });
     });
 
     describe('API', function() {
 
-        describe('#tokenize(str:String, forEachToken(token:*, surroundedBy:String):Function)', function() {
+        describe('Methods', function() {
 
-            it('sends each token to the `forEachToken` callback', function() {
+            describe('#tokenize(str:String, forEachToken:Function)', function() {
 
-                var tokenizer = new TokenizeThis();
-                var str = 'Tokenize "this"!';
+                it('sends each token to the `forEachToken(token:String, surroundedBy:String)` callback', function() {
 
-                var tokens = [];
-                var forEachToken = function(token, surroundedBy) {
+                    var tokenizer = new TokenizeThis();
+                    var str = 'Tokenize "this"!';
 
-                    tokens.push(surroundedBy+token+surroundedBy);
-                };
+                    var tokens = [];
+                    var forEachToken = function(token, surroundedBy) {
 
-                tokenizer.tokenize(str, forEachToken);
+                        tokens.push(surroundedBy+token+surroundedBy);
+                    };
 
-                equals(tokens, ['Tokenize', '"this"', '!']);                
-            });
+                    tokenizer.tokenize(str, forEachToken);
 
-            it('converts `true`, `false`, `null`, and numbers into their literal versions', function() {
-
-                var tokenizer = new TokenizeThis();
-                var str = 'true false null TRUE FALSE NULL 1 2 3.4 5.6789';
-
-                var tokens = [];
-
-                tokenizer.tokenize(str, function(token, surroundedBy) {
-
-                    tokens.push(token);
+                    equals(tokens, ['Tokenize', '"this"', '!']);
                 });
 
-                equals(tokens, [true, false, null, true, false, null, 1, 2, 3.4, 5.6789]);
+                it('it converts `true`, `false`, `null`, and numbers into their literal versions', function() {
+
+                    var tokenizer = new TokenizeThis();
+                    var str = 'true false null TRUE FALSE NULL 1 2 3.4 5.6789';
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token, surroundedBy) {
+
+                        tokens.push(token);
+                    });
+
+                    equals(tokens, [true, false, null, true, false, null, 1, 2, 3.4, 5.6789]);
+                });
             });
-        });
 
-        describe('.defaultConfig:Object', function() {
+            describe('.defaultConfig:Object', function() {
 
-            it('The default config object used when no config is supplied', function() {
-                
-                var config = {
-                    shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
-                    shouldMatch: ['"', "'", '`'],
-                    shouldDelimitBy: [' ', "\n", "\r", "\t"]
-                };
-                
-                equals(TokenizeThis.defaultConfig, config);
+                it('The default config object used when no config is supplied', function() {
+
+                    var config = {
+                        shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
+                        shouldMatch: ['"', "'", '`'],
+                        shouldDelimitBy: [' ', "\n", "\r", "\t"],
+                        convertLiterals: true,
+                        escapeCharacter: "\\"
+                    };
+
+                    equals(TokenizeThis.defaultConfig, config);
+                });
+
+                it('You can change converting to literals with the `convertLiterals` config option', function() {
+
+                    var config = {
+                        convertLiterals: false
+                    };
+                    var tokenizer = new TokenizeThis(config);
+                    var str = 'true false null TRUE FALSE NULL 1 2 3.4 5.6789';
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token, surroundedBy) {
+
+                        tokens.push(token);
+                    });
+
+                    equals(tokens, ['true', 'false', 'null', 'TRUE', 'FALSE', 'NULL', '1', '2', '3.4', '5.6789']);
+                });
+
+                it('Any strings surrounded by the quotes specified in the `shouldMatch` option are treated as whole tokens', function() {
+
+                    var config = {
+                        shouldMatch: ['"', '`', '#']
+                    };
+                    var tokenizer = new TokenizeThis(config);
+                    var str = '"hi there" `this is a test` #of quotes#';
+
+                    var tokens = [];
+                    var tokensQuoted = [];
+
+                    tokenizer.tokenize(str, function(token, surroundedBy) {
+
+                        tokens.push(token);
+                        tokensQuoted.push(surroundedBy+token+surroundedBy);
+                    });
+
+                    equals(tokens, ['hi there', 'this is a test', 'of quotes']);
+                    equals(tokensQuoted, ['"hi there"', '`this is a test`', '#of quotes#']);
+                });
+
+                it('Quotes can be escaped via a backslash', function() {
+
+                    var tokenizer = new TokenizeThis();
+                    var str = 'These are "\\"quotes\\""';
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token, surroundedBy) {
+
+                        tokens.push(token);
+                    });
+                    
+                    equals(tokens, ['These', 'are', '"quotes"']);
+                });
+
+                it('The escape character can be specified with the `escapeCharacter` option', function() {
+
+                    var config = {
+                        escapeCharacter: '#'
+                    };
+                    var tokenizer = new TokenizeThis(config);
+                    var str = 'These are "#"quotes#""';
+
+                    var tokens = [];
+
+                    tokenizer.tokenize(str, function(token, surroundedBy) {
+
+                        tokens.push(token);
+                    });
+
+                    equals(tokens, ['These', 'are', '"quotes"']);
+                });
             });
         });
     });
