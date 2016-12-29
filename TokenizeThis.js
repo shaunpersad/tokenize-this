@@ -22,6 +22,10 @@ const sortTokenizableSubstrings = (a, b) => {
     return 0;
 };
 
+const endsWith = (str, suffix) => {
+    return str.indexOf(suffix, str.length - suffix.length) !== -1;
+};
+
 /**
  * Create an instance of this class for each new string you wish to parse.
  */
@@ -222,15 +226,28 @@ class Tokenizer {
      */
     [MODE_DEFAULT](chr) {
 
+        /**
+         * If we encounter a delimiter, its time to push out the current token.
+         */
         if (this.factory.delimiterMap[chr]) {
 
             return this.completeCurrentMode();
         }
-        
+
+        /**
+         * If we encounter a quote, only push out the current token if there's a sub-token directly before it.
+         */
         if (this.factory.matchMap[chr]) {
-            
-            this.completeCurrentMode();
-            return this.consume(chr);
+
+            let tokenizeIndex = 0;
+
+            while (tokenizeIndex < this.factory.tokenizeList.length) {
+
+                if (endsWith(this.currentToken, this.factory.tokenizeList[tokenizeIndex++])) {
+                    this.completeCurrentMode();
+                    return this.consume(chr);
+                }
+            }
         }
 
         this.currentToken+=chr;
@@ -246,7 +263,7 @@ class Tokenizer {
     pushDefaultModeTokenizables() {
 
         // TODO: refactor this to be more performant.
-        
+
         let tokenizeIndex = 0;
         let lowestIndexOfTokenize = Infinity;
         let toTokenize = null;

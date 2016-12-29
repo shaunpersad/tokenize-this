@@ -69,6 +69,11 @@ equals(tokens, [
 
 ```js
 // var TokenizeThis = require('tokenize-this');
+// OR
+// var TokenizeThis = require('tokenize-this/tokenize-this.min.js'); // for node.js < 4.0
+// OR
+// <script src="tokenize-this/tokenize-this.min.js"></script> <!-- if in browser -->
+
 var tokenizer = new TokenizeThis();
 
 var str = 'Hi!, I want to add 5+6';

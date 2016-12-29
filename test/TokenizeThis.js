@@ -89,6 +89,11 @@ describe('TokenizeThis', function() {
         it('`require` it, create a new instance, then call `tokenize`', function() {
 
             // var TokenizeThis = require('tokenize-this');
+            // OR
+            // var TokenizeThis = require('tokenize-this/tokenize-this.min.js'); // for node.js < 4.0
+            // OR
+            // <script src="tokenize-this/tokenize-this.min.js"></script> <!-- if in browser -->
+
             var tokenizer = new TokenizeThis();
             
             var str = 'Hi!, I want to add 5+6';
@@ -115,7 +120,8 @@ describe('TokenizeThis', function() {
                         shouldTokenize: ['{', '}', '[', ']'],
                         shouldMatch: ['"'],
                         shouldDelimitBy: [' ', "\n", "\r", "\t", ':', ','],
-                        convertLiterals: true
+                        convertLiterals: true,
+                        escapeCharacter: "\\"
                     };
 
                     var tokenizer = new TokenizeThis(jsonConfig);
@@ -160,6 +166,8 @@ describe('TokenizeThis', function() {
                     tokenizer.tokenize(str, function(token) {
                         tokens.push(token);
                     });
+                    
+                    console.log(tokens);
 
                     equals(tokens,
                         [
