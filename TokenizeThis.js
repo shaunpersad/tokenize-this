@@ -23,17 +23,6 @@ const sortTokenizableSubstrings = (a, b) => {
 };
 
 /**
- * The default config used.
- *
- * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
- */
-const defaultConfig = {
-    shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
-    shouldMatch: ['"', "'", '`'],
-    shouldDelimitBy: [' ', "\n", "\r", "\t"]
-};
-
-/**
  * Create an instance of this class for each new string you wish to parse.
  */
 class Tokenizer {
@@ -341,7 +330,7 @@ class TokenizeThis {
          *
          * @type {{shouldTokenize: string[], shouldMatch: string[], shouldDelimitBy: string[]}}
          */
-        config = Object.assign({}, JSON.parse(JSON.stringify(defaultConfig)), config);
+        config = Object.assign({}, this.constructor.defaultConfig, config);
 
         /**
          * Holds the list of tokenizable substrings.
@@ -433,7 +422,11 @@ class TokenizeThis {
      */
     static get defaultConfig() {
 
-        return JSON.parse(JSON.stringify(defaultConfig));
+        return {
+            shouldTokenize: ['(', ')', ',', '*', '/', '%', '+', '-', '=', '!=', '!', '<', '>', '<=', '>=', '^'],
+                shouldMatch: ['"', "'", '`'],
+                shouldDelimitBy: [' ', "\n", "\r", "\t"]
+        };
     }
 }
 
