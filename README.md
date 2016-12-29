@@ -1,10 +1,8 @@
 # TokenizeThis
 
-## What is it?
+## Quickstart
 
 It turns a string into tokens.
-
-E.g.:
 
 ```js
 var tokenizer = new TokenizeThis();
