@@ -166,8 +166,6 @@ describe('TokenizeThis', function() {
                     tokenizer.tokenize(str, function(token) {
                         tokens.push(token);
                     });
-                    
-                    console.log(tokens);
 
                     equals(tokens,
                         [

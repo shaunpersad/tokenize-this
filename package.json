@@ -1,6 +1,6 @@
 {
   "name": "tokenize-this",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Turns a string into tokens.",
   "main": "TokenizeThis.js",
   "directories": {
@@ -21,7 +21,7 @@
     "math",
     "json"
   ],
-  "author": "Shaun Persad <shaunpersad@gmail.com> (http://inspirationjs.io)",
+  "author": "Shaun Persad <shaunpersad@gmail.com> (http://github.com/shaunpersad)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/shaunpersad/tokenize-this/issues"
