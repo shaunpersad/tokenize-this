@@ -89,6 +89,8 @@ class Tokenizer {
          * @type {*[]}
          */
         this.modeStack = [MODE_NONE];
+
+        this.currentIndex = 0;
     }
 
     /**
@@ -106,7 +108,7 @@ class Tokenizer {
      * @returns {Number}
      */
     setCurrentMode(mode) {
-        
+
         return this.modeStack.push(mode);
     }
 
@@ -173,7 +175,7 @@ class Tokenizer {
         }
 
         if (this.forEachToken) {
-            this.forEachToken(token, surroundedBy);
+            this.forEachToken(token, surroundedBy, this.currentIndex);
         }
     }
 
@@ -183,6 +185,7 @@ class Tokenizer {
 
         while(index < this.str.length) {
 
+            this.currentIndex = index;
             this.consume(this.str.charAt(index++));
         }
 
@@ -330,7 +333,7 @@ class Tokenizer {
         }
 
         this.currentToken+=chr;
-        
+
         return this.currentToken;
     }
 }
@@ -363,7 +366,7 @@ class TokenizeThis {
         this.convertLiterals = config.convertLiterals;
 
         /**
-         * 
+         *
          * @type {string}
          */
         this.escapeCharacter = config.escapeCharacter;

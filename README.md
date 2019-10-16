@@ -160,17 +160,24 @@ The above examples are the first steps in writing parsers for those formats. The
 
 #### #tokenize(str:String, forEachToken:Function)
 
-sends each token to the `forEachToken(token:String, surroundedBy:String)` callback.
+sends each token to the `forEachToken(token:String, surroundedBy:String, index:Integer)` callback.
 
 ```js
 var tokenizer = new TokenizeThis();
 var str = 'Tokenize "this"!';
+
 var tokens = [];
-var forEachToken = function(token, surroundedBy) {
+var indices = [];
+var forEachToken = function(token, surroundedBy, index) {
+
     tokens.push(surroundedBy+token+surroundedBy);
+    indices.push(index);
 };
+
 tokenizer.tokenize(str, forEachToken);
+
 equals(tokens, ['Tokenize', '"this"', '!']);
+equals(indices, [8, 14, 15]);
 ```
 
 it converts `true`, `false`, `null`, and numbers into their literal versions.

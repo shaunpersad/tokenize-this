@@ -27,7 +27,7 @@ describe('TokenizeThis', function() {
             });
 
             equals(tokens, ['Tokenize', 'this', '!']);
-            
+
         });
 
         it('By default, it can tokenize math-based strings', function() {
@@ -41,7 +41,7 @@ describe('TokenizeThis', function() {
 
                 tokens.push(token);
             });
-            
+
             equals(tokens, [5, '+', 6, '-', '(', 4, '/', 2, ')', '+', 'gcd', '(', 10, ',', 5, ')']);
         });
 
@@ -53,7 +53,7 @@ describe('TokenizeThis', function() {
             var tokens = [];
 
             tokenizer.tokenize(str, function(token, surroundedBy) {
-                
+
                 if (surroundedBy) {
 
                     tokens.push(surroundedBy+token+surroundedBy);
@@ -95,7 +95,7 @@ describe('TokenizeThis', function() {
             // <script src="tokenize-this/tokenize-this.min.js"></script> <!-- if in browser -->
 
             var tokenizer = new TokenizeThis();
-            
+
             var str = 'Hi!, I want to add 5+6';
 
             var tokens = [];
@@ -196,20 +196,23 @@ describe('TokenizeThis', function() {
 
             describe('#tokenize(str:String, forEachToken:Function)', function() {
 
-                it('sends each token to the `forEachToken(token:String, surroundedBy:String)` callback', function() {
+                it('sends each token to the `forEachToken(token:String, surroundedBy:String, index:Integer)` callback', function() {
 
                     var tokenizer = new TokenizeThis();
                     var str = 'Tokenize "this"!';
 
                     var tokens = [];
-                    var forEachToken = function(token, surroundedBy) {
+                    var indices = [];
+                    var forEachToken = function(token, surroundedBy, index) {
 
                         tokens.push(surroundedBy+token+surroundedBy);
+                        indices.push(index);
                     };
 
                     tokenizer.tokenize(str, forEachToken);
 
                     equals(tokens, ['Tokenize', '"this"', '!']);
+                    equals(indices, [8, 14, 15]);
                 });
 
                 it('it converts `true`, `false`, `null`, and numbers into their literal versions', function() {
@@ -293,7 +296,7 @@ describe('TokenizeThis', function() {
 
                         tokens.push(token);
                     });
-                    
+
                     equals(tokens, ['These', 'are', '"quotes"']);
                 });
 

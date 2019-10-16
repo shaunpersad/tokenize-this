@@ -1,6 +1,6 @@
 {
   "name": "tokenize-this",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Turns a string into tokens.",
   "main": "TokenizeThis.js",
   "directories": {
