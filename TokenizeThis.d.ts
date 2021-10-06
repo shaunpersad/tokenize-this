@@ -14,7 +14,7 @@ declare module 'tokenize-this' {
         constructor(options?: Options);
         tokenize(
             input: string,
-            callback: (token: Token, surroundedBy?: string, index?: number) => void,
+            callback: (token: Token, surroundedBy: string, index: number) => void,
         ): void;
     }
 
