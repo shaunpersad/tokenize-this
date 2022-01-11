@@ -2,20 +2,22 @@ import { TransformOptions } from 'stream';
 
 export const NEW_LINE = /(\r\n|\r|\n)/;
 
-export type TokenizerResult = {
-  token: string,
-  type?: string
-};
+export type TokenizerResult =
+  { token: string } |
+  { token: string, type: string } |
+  { isEnclosure: true } |
+  { stringEnclosure: string };
 
 export type TokenizerCallback = (error?: Error | null, data?: TokenizerResult) => void;
 
 export type TokenizerMatcher = {
   query: string | RegExp,
-  type?: string
+  type: string,
 };
 
 export type TokenizerConfig = {
   matchers: TokenizerMatcher[],
+  expressionEnclosures: string[],
   stringEnclosures: string[],
   stringEscapeChar: string,
   delimiters: RegExp,
@@ -33,29 +35,25 @@ export default class Tokenizer implements TransformOptions {
     this.config = config;
   }
 
-  transform(chunk: Buffer | string, encoding: BufferEncoding, callback: TokenizerCallback) {
+  transform(chunk: Buffer | string, encoding: BufferEncoding, callback: TokenizerCallback): void {
     for (const char of chunk.toString()) {
-      this.processCharacter(char, callback);
+      this.processChar(char, callback);
     }
   }
 
-  flush(callback: TokenizerCallback) {
-    const { buffer } = this;
-    if (!buffer) {
-      return;
+  flush(callback: TokenizerCallback): void {
+    let winner;
+    while (winner = this.getWinner(this.buffer)) {
+      const before = this.buffer.slice(0, winner.index);
+      before && callback(null, { token: before });
+      callback(null, { token: winner.token, type: winner.type });
+      this.buffer = this.buffer.slice(winner.index + winner.token.length);
     }
-    const winner = this.getWinner(buffer);
-    if (!winner) {
-      callback(null, { token: buffer });
-      return;
-    }
-    const [before, after] = buffer.split(winner.matcher!.query);
-    before && callback(null, { token: before });
-    callback(null, { token: winner.token, type: winner.matcher!.type });
-    after && callback(null, { token: after });
+    this.buffer && callback(null, { token: this.buffer });
+    this.buffer = '';
   }
 
-  protected processCharacter(char: string, callback: TokenizerCallback) {
+  protected processChar(char: string, callback: TokenizerCallback): void {
     const { stringOpener, buffer, config } = this;
     const { stringEscapeChar } = config;
     const str = `${buffer}${char}`;
@@ -64,7 +62,7 @@ export default class Tokenizer implements TransformOptions {
       if (char === stringOpener &&
         (!buffer.endsWith(stringEscapeChar) || !buffer.endsWith(`${stringEscapeChar}${stringEscapeChar}`))
       ) {
-        callback(null, { token: buffer, type: stringOpener });
+        callback(null, { token: buffer, stringEnclosure: stringOpener });
         this.stringOpener = '';
         this.buffer = '';
         return;
@@ -73,13 +71,21 @@ export default class Tokenizer implements TransformOptions {
       return;
     }
 
-    for (const enclosure of config.stringEnclosures) {
+    for (const enclosure of config.stringEnclosures) { //TODO support regex/multi-char enclosures
       if (char !== enclosure) {
         continue;
       }
       this.flush(callback);
       this.stringOpener = enclosure;
-      this.buffer = '';
+      return;
+    }
+
+    for (const enclosure of config.expressionEnclosures) {
+      if (char !== enclosure) {
+        continue;
+      }
+      this.flush(callback);
+      callback(null, { token: char, isEnclosure: true });
       return;
     }
 
@@ -87,26 +93,15 @@ export default class Tokenizer implements TransformOptions {
     if (matchedDelimiter) {
       this.buffer = str.slice(0, matchedDelimiter.index);
       this.flush(callback);
-      this.buffer = '';
       return;
     }
-
-    const winner = this.getWinner(str);
-    if (!winner) {
-      this.buffer = str;
-      return;
-    }
-    if (winner.index + winner.token.length === str.length) {
-      this.buffer = str;
-      return;
-    }
-    const [before, after] = str.split(winner.matcher!.query);
-    before && callback(null, { token: before });
-    callback(null, { token: winner.token, type: winner.matcher?.type });
-    this.buffer = after;
+    this.buffer = str;
   }
 
   protected getWinner(str: string) {
+    if (!str) {
+      return null;
+    }
     let winningIndex = Infinity;
     let winningToken = '';
     let winningMatcher: TokenizerMatcher | null = null;
@@ -126,7 +121,7 @@ export default class Tokenizer implements TransformOptions {
     return winningToken ? {
       index: winningIndex,
       token: winningToken,
-      matcher: winningMatcher,
+      type: winningMatcher!.type,
     } : null;
   }
 }

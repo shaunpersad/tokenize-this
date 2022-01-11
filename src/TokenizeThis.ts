@@ -39,7 +39,7 @@ export default class TokenizeThis {
     return {
       matchers: [
         {
-          query: /\d+/,
+          query: /-?(\d*\.)?\d+\b/,
           type: 'NUMBER',
         },
         {
@@ -47,16 +47,8 @@ export default class TokenizeThis {
           type: 'NEWLINE',
         },
         {
-          query: /\(/,
-          type: 'LEFT_PAREN',
-        },
-        {
-          query: /\)/,
-          type: 'RIGHT_PAREN',
-        },
-        {
           query: /,/,
-          type: 'RIGHT_PAREN',
+          type: 'COMMA',
         },
         {
           query: /\*/,
@@ -115,6 +107,7 @@ export default class TokenizeThis {
           type: 'CARET',
         },
       ],
+      expressionEnclosures: ['{', '}', '(', ')'],
       stringEnclosures: ['"', "'", '`'],
       stringEscapeChar: '\\',
       delimiters: /\s+/,
