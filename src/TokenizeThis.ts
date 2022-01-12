@@ -1,6 +1,6 @@
-import { Transform } from 'stream';
-import { TransformStream } from 'node:stream/web';
-import Tokenizer, { NEW_LINE, TokenizerCallback, TokenizerConfig, TokenizerResult } from './Tokenizer';
+import { TransformCallback, TransformOptions } from 'stream';
+import { Transformer } from 'node:stream/web';
+import Tokenizer, { TokenizerConfig, TokenizerEmitter, TokenizerToken } from './Tokenizer';
 
 export default class TokenizeThis {
   readonly config: TokenizerConfig;
@@ -9,26 +9,38 @@ export default class TokenizeThis {
     this.config = config;
   }
 
-  tokenizeString(str: string, callback: TokenizerCallback): void {
-    const tokenizer = new Tokenizer(this.config);
-    tokenizer.transform(str, 'utf8', callback);
-    tokenizer.flush(callback);
+  tokenize(str: string, forEachToken: TokenizerEmitter): void {
+    const tokenizer = new Tokenizer(this.config, forEachToken);
+    tokenizer.consume(str);
+    tokenizer.flush();
   }
 
-  tokenizeNodeStream(): Transform {
+  nodeTransformStreamOptions(): TransformOptions {
     const tokenizer = new Tokenizer(this.config);
-    return new Transform(tokenizer);
-  }
-
-  tokenizeWebStream(): TransformStream<string, TokenizerResult> {
-    const tokenizer = new Tokenizer(this.config);
-    return new TransformStream<string, TokenizerResult>({
-      transform(chunk, controller) {
-        tokenizer.transform(chunk, 'utf8', (err, tokenizeResult) => {
-          err ? controller.error(err) : controller.enqueue(tokenizeResult);
-        });
+    return {
+      transform(chunk: Buffer | string, encoding: BufferEncoding, callback: TransformCallback) {
+        tokenizer.forEachToken = (token) => callback(null, token);
+        tokenizer.consume(chunk);
       },
-    });
+      flush(callback: TransformCallback) {
+        tokenizer.forEachToken = (token) => callback(null, token);
+        tokenizer.flush();
+      },
+    };
+  }
+
+  webTransformStreamOptions(): Transformer<Buffer | string, TokenizerToken> {
+    const tokenizer = new Tokenizer(this.config);
+    return {
+      transform(chunk, controller) {
+        tokenizer.forEachToken = (token) => controller.enqueue(token);
+        tokenizer.consume(chunk);
+      },
+      flush(controller) {
+        tokenizer.forEachToken = (token) => controller.enqueue(token);
+        tokenizer.flush();
+      },
+    };
   }
 
   static fromDefaultConfig(): TokenizeThis {
@@ -36,80 +48,53 @@ export default class TokenizeThis {
   }
 
   static get defaultConfig(): TokenizerConfig {
+
     return {
       matchers: [
         {
-          query: /-?(\d*\.)?\d+\b/,
           type: 'NUMBER',
+          query: /-?(\d*\.)?\d+\b/,
         },
         {
-          query: NEW_LINE,
-          type: 'NEWLINE',
+          type: 'BOOLEAN',
+          query: /\btrue|false\b/,
         },
         {
-          query: /,/,
-          type: 'COMMA',
+          type: 'SEPARATOR',
+          query: /[,(){}\/\\:]/,
         },
         {
-          query: /\*/,
-          type: 'ASTERISK',
+          type: 'OPERATOR',
+          query: /\*|%|\+|-|!=|=|!|<=|>=|<|>|\^|&{1,2}|\|{1,2}/,
         },
         {
-          query: /\//,
-          type: 'FORWARD_SLASH',
-        },
-        {
-          query: /\\/,
-          type: 'BACK_SLASH',
-        },
-        {
-          query: /%/,
-          type: 'PERCENT',
-        },
-        {
-          query: /\+/,
-          type: 'PLUS',
-        },
-        {
-          query: /-/,
-          type: 'MINUS',
-        },
-        {
-          query: /!=/,
-          type: 'NOT_EQUAL',
-        },
-        {
-          query: /=/,
-          type: 'EQUAL',
-        },
-        {
-          query: /!/,
-          type: 'EXCLAMATION',
-        },
-        {
-          query: /<=/,
-          type: 'LESS_THAN_OR_EQUAL_TO',
-        },
-        {
-          query: />=/,
-          type: 'GREATER_THAN_OR_EQUAL_TO',
-        },
-        {
-          query: /</,
-          type: 'LESS_THAN',
-        },
-        {
-          query: />/,
-          type: 'GREATER_THAN',
-        },
-        {
-          query: /\^/,
-          type: 'CARET',
+          type: 'IDENTIFIER',
+          query: /\b[a-zA-Z_][a-zA-Z_0-9]*/,
         },
       ],
-      expressionEnclosures: ['{', '}', '(', ')'],
-      stringEnclosures: ['"', "'", '`'],
-      stringEscapeChar: '\\',
+      greedyMatchers: [
+        {
+          type: 'DOUBLE_QUOTED_STRING',
+          query: { openedBy: /"/, closedBy: /(?<!\\)(?:\\\\)*"/, haltedBy: /(?<!\\)(?:\\\\)*\n/ },
+        },
+        {
+          type: 'SINGLE_QUOTED_STRING',
+          query: { openedBy: /'/, closedBy: /(?<!\\)(?:\\\\)*'/, haltedBy: /(?<!\\)(?:\\\\)*\n/ },
+        },
+        {
+          type: 'BACKTICK_STRING',
+          query: { openedBy: /`/, closedBy: /(?<!\\)(?:\\\\)*`/ },
+        },
+        {
+          type: 'SINGLE_LINE_COMMENT',
+          query: { openedBy: /\/\//, closedBy: /\n/ },
+        },
+        {
+          type: 'MULTI_LINE_COMMENT',
+          query: { openedBy: /\/\*/, closedBy: /\*\// },
+        },
+
+      ],
       delimiters: /\s+/,
     };
   }

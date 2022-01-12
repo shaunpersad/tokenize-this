@@ -1,127 +1,145 @@
-import { TransformOptions } from 'stream';
+export type TokenizerToken = { value: string, type?: string };
 
-export const NEW_LINE = /(\r\n|\r|\n)/;
-
-export type TokenizerResult =
-  { token: string } |
-  { token: string, type: string } |
-  { isEnclosure: true } |
-  { stringEnclosure: string };
-
-export type TokenizerCallback = (error?: Error | null, data?: TokenizerResult) => void;
+export type TokenizerEmitter = (token: TokenizerToken) => void;
 
 export type TokenizerMatcher = {
-  query: string | RegExp,
   type: string,
+  query: RegExp,
+};
+
+export type TokenizerGreedyMatcher = {
+  type: string,
+  query: { openedBy: RegExp, closedBy: RegExp, haltedBy?: RegExp }
 };
 
 export type TokenizerConfig = {
   matchers: TokenizerMatcher[],
-  expressionEnclosures: string[],
-  stringEnclosures: string[],
-  stringEscapeChar: string,
+  greedyMatchers: TokenizerGreedyMatcher[],
   delimiters: RegExp,
 };
 
+type Winner = {
+  index: number,
+  token: string,
+  type: string,
+};
 
-export default class Tokenizer implements TransformOptions {
-  protected readonly config: TokenizerConfig;
-
-  protected stringOpener = '';
+export default class Tokenizer {
 
   protected buffer = '';
 
-  constructor(config: TokenizerConfig) {
-    this.config = config;
+  protected readonly greedyMatchers: TokenizerGreedyMatcher[] = [];
+
+  protected readonly matchers: TokenizerMatcher[] = [];
+
+  protected readonly delimiters: RegExp;
+
+  forEachToken: TokenizerEmitter;
+
+  constructor({ matchers, greedyMatchers, delimiters }: TokenizerConfig, forEachToken: TokenizerEmitter = () => {}) {
+    this.greedyMatchers = greedyMatchers;
+    this.matchers = matchers;
+    this.delimiters = delimiters;
+    this.forEachToken = forEachToken;
   }
 
-  transform(chunk: Buffer | string, encoding: BufferEncoding, callback: TokenizerCallback): void {
-    for (const char of chunk.toString()) {
-      this.processChar(char, callback);
+  consume(chunk: Buffer | string): void {
+    for (const char of chunk.toString('utf8')) {
+      this.buffer = `${this.buffer}${char}`;
+      let winner;
+      while (winner = this.getGreedyWinner(this.buffer)) {
+        this.buffer = this.buffer.slice(0, winner.index);
+        this.flush();
+        this.send(winner.token, winner.type);
+        this.buffer = this.buffer.slice(winner.index + winner.token.length);
+      }
+      if (winner === false) {
+        continue;
+      }
+      const match = this.buffer.match(this.delimiters);
+      if (match) {
+        this.buffer = this.buffer.slice(0, match.index);
+        this.flush();
+      }
     }
   }
 
-  flush(callback: TokenizerCallback): void {
+  flush(): void {
     let winner;
     while (winner = this.getWinner(this.buffer)) {
       const before = this.buffer.slice(0, winner.index);
-      before && callback(null, { token: before });
-      callback(null, { token: winner.token, type: winner.type });
+      this.send(before);
+      this.send(winner.token, winner.type);
       this.buffer = this.buffer.slice(winner.index + winner.token.length);
     }
-    this.buffer && callback(null, { token: this.buffer });
+    this.send(this.buffer);
     this.buffer = '';
   }
 
-  protected processChar(char: string, callback: TokenizerCallback): void {
-    const { stringOpener, buffer, config } = this;
-    const { stringEscapeChar } = config;
-    const str = `${buffer}${char}`;
-
-    if (stringOpener) {
-      if (char === stringOpener &&
-        (!buffer.endsWith(stringEscapeChar) || !buffer.endsWith(`${stringEscapeChar}${stringEscapeChar}`))
-      ) {
-        callback(null, { token: buffer, stringEnclosure: stringOpener });
-        this.stringOpener = '';
-        this.buffer = '';
-        return;
-      }
-      this.buffer = str;
-      return;
-    }
-
-    for (const enclosure of config.stringEnclosures) { //TODO support regex/multi-char enclosures
-      if (char !== enclosure) {
-        continue;
-      }
-      this.flush(callback);
-      this.stringOpener = enclosure;
-      return;
-    }
-
-    for (const enclosure of config.expressionEnclosures) {
-      if (char !== enclosure) {
-        continue;
-      }
-      this.flush(callback);
-      callback(null, { token: char, isEnclosure: true });
-      return;
-    }
-
-    const matchedDelimiter = str.match(config.delimiters);
-    if (matchedDelimiter) {
-      this.buffer = str.slice(0, matchedDelimiter.index);
-      this.flush(callback);
-      return;
-    }
-    this.buffer = str;
+  send(value: string, type?: string): void {
+    value && this.forEachToken({ value, type });
   }
 
-  protected getWinner(str: string) {
+  protected getGreedyWinner(str: string): Winner | null | false {
     if (!str) {
       return null;
     }
     let winningIndex = Infinity;
     let winningToken = '';
-    let winningMatcher: TokenizerMatcher | null = null;
-    for (const matcher of this.config.matchers) {
-      const match = str.match(matcher.query);
-      if (!match) {
+    let winningType = '';
+    for (const { type, query } of this.greedyMatchers) {
+      const { openedBy, closedBy, haltedBy } = query;
+      const openMatch = str.match(openedBy);
+      if (!openMatch) {
         continue;
       }
-      const index = match.index as number;
-      const [token] = match;
-      if (index <= winningIndex && token.length > winningToken.length) {
+      const index = openMatch.index as number;
+      const remainder = str.slice(index + openMatch.length);
+      if (haltedBy?.test(remainder)) {
+        continue;
+      }
+      const closedMatch = remainder.match(closedBy);
+      if (!closedMatch) {
+        return false;
+      }
+      const token = str.slice(index, index + openMatch.length + closedMatch.index! + closedMatch[0].length);
+      if (index < winningIndex || (index === winningIndex && token.length > winningToken.length)) {
         winningIndex = index;
         winningToken = token;
-        winningMatcher = matcher;
+        winningType = type;
       }
     }
     return winningToken ? {
       index: winningIndex,
       token: winningToken,
-      type: winningMatcher!.type,
+      type: winningType,
+    } : null;
+  }
+
+  protected getWinner(str: string): Winner | null {
+    if (!str) {
+      return null;
+    }
+    let winningIndex = Infinity;
+    let winningToken = '';
+    let winningType = '';
+    for (const { query, type } of this.matchers) {
+      const match = str.match(query);
+      if (!match) {
+        continue;
+      }
+      const index = match.index as number;
+      const [token] = match;
+      if (index < winningIndex || (index === winningIndex && token.length > winningToken.length)) {
+        winningIndex = index;
+        winningToken = token;
+        winningType = type;
+      }
+    }
+    return winningToken ? {
+      index: winningIndex,
+      token: winningToken,
+      type: winningType,
     } : null;
   }
 }
