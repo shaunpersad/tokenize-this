@@ -1,28 +1,19 @@
 import { TransformCallback, TransformOptions } from 'stream';
 import { Transformer } from 'node:stream/web';
-import Tokenizer, { TokenizerConfig, TokenizerEmitter, TokenizerToken } from './Tokenizer';
+import Tokenizer, { TokenizerConfig, TokenizerToken } from './Tokenizer';
 import { config as commonConfig } from './config/common';
 
-type NearleyInfo = { lastIndex: number, position: number, buffer: string };
+type ErrorFormatter = (token: TokenizerToken, tokens: TokenizerToken[], tokenIndex: number) => string;
 
 export default class TokenizeThis {
-  readonly config: TokenizerConfig;
 
-  constructor(config: TokenizerConfig = commonConfig) {
-    this.config = config;
+  static tokenizer(config: TokenizerConfig = commonConfig): Tokenizer {
+    return new Tokenizer(config);
   }
 
   /**
-   * Use when you already have the full string and are ready to process the entire thing at once.
-   */
-  tokenize(str: string | Buffer, forEachToken: TokenizerEmitter): void {
-    const tokenizer = new Tokenizer(this.config);
-    tokenizer.transform(str, forEachToken);
-    tokenizer.flush(forEachToken);
-  }
-
-  /**
-   * Creates an object that can be passed to a Node.js Transform constructor to create a Transform stream. e.g.:
+   * Creates an object that can be passed to a Node.js Transform constructor to create a Transform stream.
+   *
    * ```
    * import { Transform } from 'stream';
    * const tokenizeThis = new TokenizeThis();
@@ -30,10 +21,9 @@ export default class TokenizeThis {
    * textReader.pipe(tokenizer).pipe(parser);
    * ```
    */
-  nodeTransformStreamOptions(): TransformOptions {
-    const tokenizer = new Tokenizer(this.config);
+  static nodeTransformStreamOptions(tokenizer: Tokenizer): TransformOptions {
     return {
-      transform(chunk: Buffer | string, encoding: BufferEncoding, callback: TransformCallback) {
+      transform(chunk: string | Buffer, encoding: BufferEncoding, callback: TransformCallback) {
         tokenizer.transform(chunk, (token) => callback(null, token));
       },
       flush(callback: TransformCallback) {
@@ -43,7 +33,8 @@ export default class TokenizeThis {
   }
 
   /**
-   * Creates an object that can be passed to a web TransformStream constructor to create a Transform stream. e.g.:
+   * Creates an object that can be passed to a web TransformStream constructor to create a Transform stream.
+   *
    * ```
    * import { TransformStream } from 'stream/web';
    * const tokenizeThis = new TokenizeThis();
@@ -51,8 +42,7 @@ export default class TokenizeThis {
    * textReader.pipeThrough(tokenizer).pipeTo(parser);
    * ```
    */
-  webTransformStreamOptions(): Transformer<Buffer | string, TokenizerToken> {
-    const tokenizer = new Tokenizer(this.config);
+  static webTransformStreamOptions(tokenizer: Tokenizer): Transformer<string | Buffer, TokenizerToken> {
     return {
       transform(chunk, controller) {
         tokenizer.transform(chunk, (token) => controller.enqueue(token));
@@ -63,24 +53,22 @@ export default class TokenizeThis {
     };
   }
 
-  nearleyCompat(formatError: (token: TokenizerToken, tokens: TokenizerToken[], tokenIndex: number) => string) {
-    const tokenizer = new Tokenizer(this.config);
-    const tokens: TokenizerToken[] = [];
-    const setTokens = (token: TokenizerToken) => tokens.push(token);
+  static nearleyCompat(tokenizer: Tokenizer, formatError: ErrorFormatter) {
     let tokenIndex = 0;
+    let tokens: TokenizerToken[] = [];
+    const setTokens = (token: TokenizerToken) => tokens.push(token);
     return {
       next() {
         return tokenIndex < tokens.length ? tokens[tokenIndex++] : null;
       },
-      save(): NearleyInfo {
-        const { query: { lastIndex }, position, buffer } = tokenizer;
-        return { lastIndex, position, buffer };
+      save(): number {
+        return tokenIndex - 1;
       },
-      reset(chunk: string, { lastIndex, position, buffer }: NearleyInfo) {
+      reset(chunk: string, index: number) {
+        const token = tokens[index];
         tokenIndex = 0;
-        tokenizer.query.lastIndex = lastIndex;
-        tokenizer.position = position;
-        tokenizer.buffer = buffer;
+        tokens = [];
+        tokenizer.resetTo(token);
         tokenizer.transform(chunk, setTokens);
         tokenizer.flush(setTokens);
       },
@@ -92,5 +80,4 @@ export default class TokenizeThis {
       },
     };
   }
-
 }
