@@ -1,145 +1,103 @@
-export type TokenizerToken = { value: string, type?: string };
+export type TokenizerToken = { value: string, position: number, type?: string };
 
 export type TokenizerEmitter = (token: TokenizerToken) => void;
 
-export type TokenizerMatcher = {
-  type: string,
-  query: RegExp,
-};
+export type TokenizerMatcher = { type: string, query: RegExp };
 
-export type TokenizerGreedyMatcher = {
-  type: string,
-  query: { openedBy: RegExp, closedBy: RegExp, haltedBy?: RegExp }
-};
+export type TokenizerGreedyMatcherQuery = { openedBy: RegExp, closedBy: RegExp };
+
+export type TokenizerGreedyMatcher = { type: string, query: TokenizerGreedyMatcherQuery };
 
 export type TokenizerConfig = {
   matchers: TokenizerMatcher[],
   greedyMatchers: TokenizerGreedyMatcher[],
   delimiters: RegExp,
-};
-
-type Winner = {
-  index: number,
-  token: string,
-  type: string,
+  delimiterType?: string,
 };
 
 export default class Tokenizer {
 
-  protected buffer = '';
+  readonly types: string[] = [];
 
-  protected readonly greedyMatchers: TokenizerGreedyMatcher[] = [];
+  readonly delimiterType?: string;
 
-  protected readonly matchers: TokenizerMatcher[] = [];
+  readonly query: RegExp;
 
-  protected readonly delimiters: RegExp;
+  position = 0;
 
-  forEachToken: TokenizerEmitter;
+  buffer = ''; // holds a portion of the string stream for processing.
 
-  constructor({ matchers, greedyMatchers, delimiters }: TokenizerConfig, forEachToken: TokenizerEmitter = () => {}) {
-    this.greedyMatchers = greedyMatchers;
-    this.matchers = matchers;
-    this.delimiters = delimiters;
-    this.forEachToken = forEachToken;
+  constructor({ matchers, greedyMatchers, delimiters, delimiterType }: TokenizerConfig) {
+    this.delimiterType = delimiterType;
+    this.query = new RegExp(
+      greedyMatchers
+        .flatMap(
+          ({ type, query }) => {
+            const { openedBy, closedBy } = query;
+            this.types.push(type, '');
+            return [`(${openedBy.source}${closedBy.source})`, `(${openedBy.source})`];
+          },
+        )
+        .concat(
+          matchers.map(({ type, query }) => {
+            this.types.push(type);
+            return `(${query.source})`;
+          },
+          ),
+        )
+        .concat(`(${delimiters.source})`)
+        .join('|'),
+      'g',
+    );
   }
 
-  consume(chunk: Buffer | string): void {
-    for (const char of chunk.toString('utf8')) {
-      this.buffer = `${this.buffer}${char}`;
-      let winner;
-      while (winner = this.getGreedyWinner(this.buffer)) {
-        this.buffer = this.buffer.slice(0, winner.index);
-        this.flush();
-        this.send(winner.token, winner.type);
-        this.buffer = this.buffer.slice(winner.index + winner.token.length);
+  /**
+   * Processes the next chunk of the string stream.
+   */
+  transform(chunk: string | Buffer, forEachToken: TokenizerEmitter): void {
+    const { buffer, query, types, delimiterType } = this;
+    const str = `${buffer}${chunk.toString('utf8')}`;
+    const numTypes = types.length;
+    let lastEndIndex = 0;
+    let match;
+    while (match = query.exec(str)) {
+      const value = match[0];
+      const { index } = match;
+      if (index - lastEndIndex) this.send(forEachToken, str.substring(lastEndIndex, index));
+      for (let x = 0; x < numTypes; x++) {
+        if (match[x + 1] !== undefined) {
+          if (types[x]){
+            this.send(forEachToken, value, types[x]); // ignore the partial greedy match
+          } else {
+            query.lastIndex = lastEndIndex; // reset back to the beginning of the greedy match
+          }
+          break;
+        }
       }
-      if (winner === false) {
-        continue;
-      }
-      const match = this.buffer.match(this.delimiters);
-      if (match) {
-        this.buffer = this.buffer.slice(0, match.index);
-        this.flush();
+      lastEndIndex = index + value.length;
+      if (match[numTypes + 1] !== undefined) { // we hit a delimiter
+        delimiterType ? this.send(forEachToken, value, delimiterType) : this.position += value.length;
       }
     }
+    this.buffer = str.substring(lastEndIndex);
+    this.query.lastIndex = 0;
   }
 
-  flush(): void {
-    let winner;
-    while (winner = this.getWinner(this.buffer)) {
-      const before = this.buffer.slice(0, winner.index);
-      this.send(before);
-      this.send(winner.token, winner.type);
-      this.buffer = this.buffer.slice(winner.index + winner.token.length);
-    }
-    this.send(this.buffer);
+  /**
+   * Call whenever it's time to turn the entirety of the current buffer into tokens.
+   */
+  flush(forEachToken: TokenizerEmitter): void {
+    this.send(forEachToken, this.buffer);
     this.buffer = '';
+    this.query.lastIndex = 0;
   }
 
-  send(value: string, type?: string): void {
-    value && this.forEachToken({ value, type });
-  }
-
-  protected getGreedyWinner(str: string): Winner | null | false {
-    if (!str) {
-      return null;
-    }
-    let winningIndex = Infinity;
-    let winningToken = '';
-    let winningType = '';
-    for (const { type, query } of this.greedyMatchers) {
-      const { openedBy, closedBy, haltedBy } = query;
-      const openMatch = str.match(openedBy);
-      if (!openMatch) {
-        continue;
-      }
-      const index = openMatch.index as number;
-      const remainder = str.slice(index + openMatch.length);
-      if (haltedBy?.test(remainder)) {
-        continue;
-      }
-      const closedMatch = remainder.match(closedBy);
-      if (!closedMatch) {
-        return false;
-      }
-      const token = str.slice(index, index + openMatch.length + closedMatch.index! + closedMatch[0].length);
-      if (index < winningIndex || (index === winningIndex && token.length > winningToken.length)) {
-        winningIndex = index;
-        winningToken = token;
-        winningType = type;
-      }
-    }
-    return winningToken ? {
-      index: winningIndex,
-      token: winningToken,
-      type: winningType,
-    } : null;
-  }
-
-  protected getWinner(str: string): Winner | null {
-    if (!str) {
-      return null;
-    }
-    let winningIndex = Infinity;
-    let winningToken = '';
-    let winningType = '';
-    for (const { query, type } of this.matchers) {
-      const match = str.match(query);
-      if (!match) {
-        continue;
-      }
-      const index = match.index as number;
-      const [token] = match;
-      if (index < winningIndex || (index === winningIndex && token.length > winningToken.length)) {
-        winningIndex = index;
-        winningToken = token;
-        winningType = type;
-      }
-    }
-    return winningToken ? {
-      index: winningIndex,
-      token: winningToken,
-      type: winningType,
-    } : null;
+  /**
+   * Calls the emitter with the next token.
+   */
+  protected send(forEachToken: TokenizerEmitter, value: string, type?: string): void {
+    const { position } = this;
+    if (value) forEachToken({ value, position, type }); // only send if there's actually a value.
+    this.position += value.length;
   }
 }

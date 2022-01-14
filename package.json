@@ -1,10 +1,11 @@
 {
   "name": "tokenize-this",
-  "version": "1.4.2",
+  "version": "2.0.0",
   "description": "Turns a string into tokens.",
-  "main": "TokenizeThis.js",
-  "types": "TokenizeThis.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "directories": {
+    "lib": "src",
     "test": "test"
   },
   "scripts": {
@@ -13,7 +14,7 @@
     "document": "mocha --reporter=markdown"
   },
   "mocha": {
-    "spec": "test/TokenizeThis.test.ts",
+    "spec": "test/*.test.ts",
     "extension": [
       "ts"
     ],

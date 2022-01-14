@@ -1,0 +1,8 @@
+this "has an escape \
+character"
+"has a \"escaped\" quote"
+"has a fake \n in it"
+"has an escaped \\n in it"
+backtick `hey
+how's it going?
+`
