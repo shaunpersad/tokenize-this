@@ -1,14 +1,14 @@
 import { TransformCallback, TransformOptions } from 'stream';
 import { Transformer } from 'node:stream/web';
-import Tokenizer, { TokenizerConfig, TokenizerToken } from './Tokenizer';
+import RegexTokenizer, { TokenizerConfig, TokenizerToken } from './RegexTokenizer';
 import { config as commonConfig } from './config/common';
 
 type ErrorFormatter = (token: TokenizerToken, tokens: TokenizerToken[], tokenIndex: number) => string;
 
 export default class TokenizeThis {
 
-  static tokenizer(config: TokenizerConfig = commonConfig): Tokenizer {
-    return new Tokenizer(config);
+  static tokenizer(config: TokenizerConfig = commonConfig): RegexTokenizer {
+    return new RegexTokenizer(config);
   }
 
   /**
@@ -21,7 +21,7 @@ export default class TokenizeThis {
    * textReader.pipe(tokenizer).pipe(parser);
    * ```
    */
-  static nodeTransformStreamOptions(tokenizer: Tokenizer): TransformOptions {
+  static nodeTransformStreamOptions(tokenizer: RegexTokenizer): TransformOptions {
     return {
       transform(chunk: string | Buffer, encoding: BufferEncoding, callback: TransformCallback) {
         tokenizer.transform(chunk, (token) => callback(null, token));
@@ -42,7 +42,7 @@ export default class TokenizeThis {
    * textReader.pipeThrough(tokenizer).pipeTo(parser);
    * ```
    */
-  static webTransformStreamOptions(tokenizer: Tokenizer): Transformer<string | Buffer, TokenizerToken> {
+  static webTransformStreamOptions(tokenizer: RegexTokenizer): Transformer<string | Buffer, TokenizerToken> {
     return {
       transform(chunk, controller) {
         tokenizer.transform(chunk, (token) => controller.enqueue(token));
@@ -53,7 +53,7 @@ export default class TokenizeThis {
     };
   }
 
-  static nearleyCompat(tokenizer: Tokenizer, formatError: ErrorFormatter) {
+  static nearleyCompat(tokenizer: RegexTokenizer, formatError: ErrorFormatter) {
     let tokenIndex = 0;
     let tokens: TokenizerToken[] = [];
     const setTokens = (token: TokenizerToken) => tokens.push(token);

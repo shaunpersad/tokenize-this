@@ -1,5 +1,5 @@
 import TokenizeThis from './TokenizeThis';
-import Tokenizer, { TokenizerConfig, TokenizerEmitter, TokenizerToken } from './Tokenizer';
+import RegexTokenizer, { TokenizerConfig, TokenizerEmitter, TokenizerToken } from './RegexTokenizer';
 import { config as commonConfig } from './config/common';
 import { config as jsonConfig } from './config/json';
 
@@ -11,7 +11,7 @@ export type {
 
 export {
   TokenizeThis,
-  Tokenizer,
+  RegexTokenizer,
   commonConfig,
   jsonConfig,
 };

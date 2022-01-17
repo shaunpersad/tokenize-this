@@ -1,4 +1,4 @@
-import { TokenizerConfig, TokenizerGreedyMatcherQuery } from '../Tokenizer';
+import { TokenizerConfig, TokenizerGreedyMatcherQuery } from '../RegexTokenizer';
 
 export const unescaped = ({ source }: RegExp): RegExp => new RegExp(`(?<!\\\\)(?:\\\\\\\\)*${source}`);
 export const singleLineContent = ({ source }: RegExp): RegExp => new RegExp(`${source}.*?`);

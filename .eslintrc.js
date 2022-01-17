@@ -12,7 +12,7 @@ module.exports = {
   rules: {
     'no-param-reassign': 'off',
     'no-void': 'off',
-    "max-len": ["error", { "code": 120 }],
+    "max-len": ["error", { "code": 140 }],
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-return': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',

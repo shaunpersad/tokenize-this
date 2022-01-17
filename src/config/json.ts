@@ -1,4 +1,4 @@
-import { TokenizerConfig } from '../Tokenizer';
+import { TokenizerConfig } from '../RegexTokenizer';
 import { NUMBER, BOOLEAN, NULL, DOUBLE_QUOTED_STRING_SINGLE_LINE, ALL_WHITESPACE, COMMA } from './common';
 export { NUMBER, BOOLEAN, NULL, DOUBLE_QUOTED_STRING_SINGLE_LINE, ALL_WHITESPACE, COMMA };
 export const ARRAY_OPENED = /\[/;
