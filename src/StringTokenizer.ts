@@ -1,182 +1,119 @@
 import Tokenizer, { TokenizerChunk } from './Tokenizer';
 import CharNode from './CharNode';
 
-export type StringTokenizerMatcher = {
+export type StringTokenizerMatcher = { type: string, matches: string | string[] };
+
+export type StringTokenizerMatcherNormalized = { type: string, matches: string[] };
+
+export type StringTokenizerGreedyMatcher = {
   type: string,
   startsWith: string,
   endsWith?: string,
   haltsWith?: string,
-  escapeHaltsWith?: string,
+  escapesWith?: string,
 };
 
 export type StringTokenizerConfig = {
-  keywords?: string[],
-  punctuation?: string[],
-  delimiters?: string[],
-  matchers?: StringTokenizerMatcher[],
-  keywordType?: string | 'KEYWORD',
-  punctuationType?: string | 'PUNCTUATION',
-  delimiterType?: string | 'DELIMITER',
-  identifierType?: string | 'IDENTIFIER',
-  numberType?: string | 'NUMBER',
-  numberFloatType?: string | 'NUMBER',
+  keywords?: Array<string | StringTokenizerMatcher>,
+  punctuation?: Array<string | StringTokenizerMatcher>,
+  greedyMatchers?: StringTokenizerGreedyMatcher[],
+  delimiters: Array<string | StringTokenizerMatcher>,
   floatsHaveLeadingNumber?: boolean,
-  haltedTypePrefix?: string | 'HALTED_',
-  unknownType?: string | 'UNKNOWN',
 };
 
-export const charIsLetter = (char: string) => (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
-export const charIsNumber = (char: string) => (char >= '0' && char <= '9');
-export const isStartOfIdentifier = (char: string) => char === '_' || charIsLetter(char);
-export const isInIdentifier = (char: string) => char === '_' || charIsLetter(char) || charIsNumber(char);
+const EOF = '';
+const DECIMAL_POINT = '.';
 
 export default class StringTokenizer extends Tokenizer {
 
-  protected buffer = '';
-
-  protected rootNode = new CharNode();
+  readonly rootNode = new CharNode();
 
   protected stateNode = this.rootNode;
 
-  constructor({ keywords = [], punctuation = [], delimiters = [], matchers = [], ...optional }: StringTokenizerConfig) {
+  protected buffer = '';
+
+
+  constructor(config: StringTokenizerConfig) {
     super();
-    const keywordType = optional.delimiterType || 'KEYWORD';
-    const punctuationType = optional.delimiterType || 'PUNCTUATION';
-    const delimiterType = optional.delimiterType || 'DELIMITER';
-    const identifierType = optional.delimiterType || 'IDENTIFIER';
-    const numberType = optional.numberType || 'NUMBER';
-    const numberFloatType = numberType || 'FLOAT';
-    const floatsHaveLeadingNumber = optional.floatsHaveLeadingNumber || false;
-    const haltedTypePrefix = optional.haltedTypePrefix || 'HALTED_';
-    const unknownType = optional.unknownType || 'UNKNOWN';
-    const delimitersWithEOF = delimiters.concat('');
+    const { defaultKeywordType, defaultPunctuationType, defaultDelimiterType } = StringTokenizer;
+    const { identifierType, numberType, numberFloatType, haltedTypePrefix, unknownType } = StringTokenizer;
+    const { charIsNumber, charIsStartOfIdentifier, charIsInIdentifier } = StringTokenizer;
+    const keywords = StringTokenizer.normalizeDefs(config.keywords || [], defaultKeywordType);
+    const punctuation = StringTokenizer.normalizeDefs(config.punctuation || [], defaultPunctuationType);
+    const delimiters = StringTokenizer.normalizeDefs(config.delimiters || [], defaultDelimiterType);
+    const delimitersWithEOF = delimiters.concat({ type: StringTokenizer.defaultDelimiterType, matches: [EOF] });
+    const greedyMatchers = config.greedyMatchers || [];
+    const floatsHaveLeadingNumber = config.floatsHaveLeadingNumber || false;
 
-    const sendPrevious = (previousNode: CharNode, previousType: string, currentType: string, currentValue: string) => {
-      const endNode = previousNode.addDescendant(currentValue);
-      endNode.execute = (str, startIndex, currentIndex) => {
-        const previousValue = str.substring(startIndex, (currentIndex + 1) - currentValue.length);
-        // console.log({ currentIndex, startIndex: this.position, previousValue, previousType, currentValue, currentType });
-        this.send(previousValue, previousType);
-        this.stateNode = this.rootNode;
-        for (let x = 0; x < currentValue.length; x++) {
-          this.stateNode = this.stateNode.getChild(currentValue.charAt(x));
-        }
-        // console.log({ str, startIndex, currentIndex });
-        this.stateNode.execute(str, startIndex, currentIndex);
-      };
-    };
-    const waitToTokenize = (node: CharNode, type: string) => {
-      delimitersWithEOF.forEach((delimiterValue) => sendPrevious(node, type, delimiterType, delimiterValue));
-      punctuation?.forEach((punctuationValue) => sendPrevious(node, type, punctuationType, punctuationValue));
+    const waitToTokenize = (node: CharNode, type: string): void => {
+      this.sendOnceEncountered(node, type, delimitersWithEOF);
+      this.sendOnceEncountered(node, type, punctuation);
     };
 
-    const unknownNode = new CharNode('--unknown--');
+    const unknownNode = new CharNode();
     waitToTokenize(unknownNode, unknownType);
 
-    const identifierNode = new CharNode('--identifier--');
-    identifierNode.getDefaultChild = (char) => isInIdentifier(char) ? identifierNode : unknownNode;
+    const identifierNode = new CharNode();
+    identifierNode.getDefaultChild = (char) => charIsInIdentifier(char) ? identifierNode : unknownNode;
     waitToTokenize(identifierNode, identifierType);
 
-    const numberNode = new CharNode('--number--');
+    const numberNode = new CharNode();
     numberNode.getDefaultChild = (char) => charIsNumber(char) ? numberNode : unknownNode;
     waitToTokenize(numberNode, numberType);
 
-    const numberFloatNode = numberNode.addChild('.');
+    const numberFloatNode = numberNode.addChild(DECIMAL_POINT);
     numberFloatNode.getDefaultChild = (char) => charIsNumber(char) ? numberFloatNode : unknownNode;
     waitToTokenize(numberFloatNode, numberFloatType);
 
-    keywords.forEach((keyword) => {
-      let node = this.rootNode;
-      [...keyword].forEach((char: string) => {
-        node = node.addChild(char);
-        waitToTokenize(node, identifierType);
-      });
-      node.getDefaultChild = identifierNode.getDefaultChild;
-      waitToTokenize(node, keywordType);
-    });
-
-    matchers?.forEach(
-      ({ type, startsWith, endsWith = '', haltsWith = '', escapeHaltsWith = '' }) => {
+    keywords.forEach(
+      (keyword) => keyword.matches.forEach(
+        (value) => {
+          let node = this.rootNode;
+          [...value].forEach((char: string) => {
+            node = node.addChild(char);
+            waitToTokenize(node, identifierType);
+          });
+          node.getDefaultChild = identifierNode.getDefaultChild;
+          waitToTokenize(node, keyword.type);
+        },
+      ),
+    );
+    greedyMatchers?.forEach(
+      ({ type, startsWith, endsWith = '', haltsWith = '', escapesWith = '' }) => {
         const haltedType = `${haltedTypePrefix}${type}`;
         const node = this.rootNode.addDescendant(startsWith);
-        if (!endsWith) {
-          waitToTokenize(node, type);
-          return;
-        }
-        const endNode = node.addDescendant(endsWith);
-        endNode.execute = (str, startIndex, currentIndex) => {
-          let escapeIndex = currentIndex - endsWith.length;
-          let numInstances = 0;
-          while (escapeIndex >= 0) {
-            if (str.charAt(escapeIndex) != escapeHaltsWith) {
-              break;
-            }
-            numInstances++;
-            escapeIndex--;
-          }
-          const escaped = numInstances % 2;
-          if (!numInstances || !escaped) {
-            const value = str.substring(startIndex, currentIndex + 1);
-            this.send(value, type);
-          }
-        };
-        const eofNode = node.addDescendant('');
-        eofNode.execute = (str, startIndex, currentIndex) => {
-          const value = str.substring(startIndex, currentIndex + 1);
-          this.send(value, haltedType);
-        };
-        if (haltsWith) {
-          const haltNode = node.addDescendant(haltsWith);
-          haltNode.execute = (str, startIndex, currentIndex) => {
-            const value = str.substring(startIndex, currentIndex + 1);
-            this.send(value, haltedType);
-          };
-          if (escapeHaltsWith) {
-            if (escapeHaltsWith.length > 1) {
-              throw new Error('Escaping with more than a single character is not currently supported.');
-            }
-            haltNode.execute = (str, startIndex, currentIndex) => {
-              let escapeIndex = currentIndex - haltsWith.length;
-              let numInstances = 0;
-              while (escapeIndex >= 0) {
-                if (str.charAt(escapeIndex) != escapeHaltsWith) {
-                  break;
-                }
-                numInstances++;
-                escapeIndex--;
-              }
-              const escaped = numInstances % 2;
-              if (!numInstances || !escaped) {
-                const value = str.substring(startIndex, currentIndex + 1);
-                this.send(value, haltedType);
-              }
-            };
-          }
-        }
+        if (!endsWith) return waitToTokenize(node, type);
+        this.sendImmediately(node, haltedType, EOF);
+        escapesWith ? this.sendIfNotEscaped(node, type, endsWith, escapesWith) : this.sendImmediately(node, type, endsWith);
+        if (!haltsWith) return;
+        escapesWith ? this.sendIfNotEscaped(node, haltedType, haltsWith, escapesWith) : this.sendImmediately(node, haltedType, haltsWith);
       },
     );
-    delimiters?.forEach((delimiterValue) => {
-      const node = this.rootNode.addDescendant(delimiterValue);
-      node.execute = () => this.send(delimiterValue, delimiterType);
-    });
-    punctuation?.forEach((punctuationValue) => {
-      const node = this.rootNode.addDescendant(punctuationValue);
-      node.getDefaultChild = (char) => {
-        // console.log('sending from root punctuation');
-        this.send(punctuationValue, punctuationType);
-        return this.rootNode.getChild(char);
-      };
-    });
+    delimiters?.forEach(
+      ({ type, matches }) => matches.forEach(
+        (value) => {
+          const node = this.rootNode.addDescendant(value);
+          node.execute = () => this.send(value, type);
+        },
+      ),
+    );
+    punctuation?.forEach(
+      ({ type, matches }) => matches.forEach(
+        (value) => {
+          const node = this.rootNode.addDescendant(value);
+          node.getDefaultChild = (char) => {
+            this.send(value, type);
+            return this.rootNode.getChild(char);
+          };
+        },
+      ),
+    );
     if (!floatsHaveLeadingNumber) {
-      this.rootNode.children.set('.', numberFloatNode);
+      this.rootNode.children.set(DECIMAL_POINT, numberFloatNode);
     }
     this.rootNode.getDefaultChild = (char: string) => {
-      if (isStartOfIdentifier(char)) {
-        return identifierNode;
-      }
-      if (charIsNumber(char)) {
-        return numberNode;
-      }
+      if (charIsStartOfIdentifier(char)) return identifierNode;
+      if (charIsNumber(char)) return numberNode;
       return unknownNode;
     };
   }
@@ -187,30 +124,103 @@ export default class StringTokenizer extends Tokenizer {
     const startPosition = this.position;
     for (let currentIndex = this.buffer.length; currentIndex < length; currentIndex++) {
       const char = str.charAt(currentIndex);
-      // console.log({ char, stateBefore: this.stateNode.char });
       this.stateNode = this.stateNode.getChild(char);
-      // console.log({ stateAfter: this.stateNode.char });
-      // console.log('transform', { char: this.stateNode.char, buffer: this.buffer, currentIndex, startPosition });
       this.stateNode.execute(str, this.position - startPosition, currentIndex);
     }
-    // console.log('buffer before', this.buffer);
     this.buffer = str.substring(this.position - startPosition);
-    // console.log('buffer after', this.buffer, this.position, startPosition, this.position - startPosition);
   }
 
   flush() {
-    // console.log('flush');
-    this.stateNode = this.stateNode.getChild('');
-    // console.log('after', this.stateNode.char);
+    this.stateNode = this.stateNode.getChild(EOF);
     this.stateNode.execute(this.buffer, 0, this.buffer.length);
   }
 
-  protected send(value: string, type?: string): void {
-    // console.log('sending', value, type);
-    const { position } = this;
-    if (value) this.forEachToken({ value, position, type });
-    this.position += value.length;
+  reset(position = 0) {
+    this.position = position;
     this.stateNode = this.rootNode;
+    this.buffer = '';
+  }
+
+  protected send(value: string, type?: string): void {
+    super.send(value, type);
+    this.stateNode = this.rootNode;
+  }
+
+  protected sendImmediately(node: CharNode, type: string, encountered: string): void {
+    const encounteredNode = node.addDescendant(encountered);
+    encounteredNode.execute = (str, startIndex, currentIndex) => {
+      const value = str.substring(startIndex, currentIndex + 1);
+      this.send(value, type);
+    };
+  }
+
+  protected sendOnceEncountered(node: CharNode, type: string, encountered: StringTokenizerMatcherNormalized[]): void {
+    encountered.forEach(
+      ({ matches }) => matches.forEach(
+        (encounteredValue) => {
+          const encounteredNode = node.addDescendant(encounteredValue);
+          encounteredNode.execute = (str, startIndex, currentIndex) => {
+            const value = str.substring(startIndex, (currentIndex + 1) - encounteredValue.length);
+            this.send(value, type);
+            this.stateNode = this.rootNode.getDescendant(encounteredValue);
+            this.stateNode.execute(str, startIndex, currentIndex);
+          };
+        },
+      ),
+    );
+  }
+
+  protected sendIfNotEscaped(node: CharNode, type: string, encountered: string, escapeChar: string): void {
+    const encounteredNode = node.addDescendant(encountered);
+    encounteredNode.execute = (str, startIndex, currentIndex) => {
+      let escapeIndex = currentIndex - encountered.length;
+      let numInstances = 0;
+      while (escapeIndex >= 0) {
+        if (str.charAt(escapeIndex) != escapeChar) {
+          break;
+        }
+        numInstances++;
+        escapeIndex--;
+      }
+      const escaped = numInstances % 2;
+      if (!numInstances || !escaped) {
+        const value = str.substring(startIndex, currentIndex + 1);
+        this.send(value, type);
+      }
+    };
+  }
+
+  static defaultKeywordType = 'KEYWORD';
+
+  static defaultPunctuationType = 'PUNCTUATION';
+
+  static defaultDelimiterType = 'DELIMITER';
+
+  static identifierType = 'IDENTIFIER';
+
+  static numberType = 'NUMBER';
+
+  static numberFloatType = this.numberType;
+
+  static haltedTypePrefix = 'HALTED_';
+
+  static unknownType = 'UNKNOWN';
+
+  static charIsLetter = (char: string) => (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+
+  static charIsNumber = (char: string) => (char >= '0' && char <= '9');
+
+  static charIsStartOfIdentifier = (char: string) => char === '_' || this.charIsLetter(char);
+
+  static charIsInIdentifier = (char: string) => char === '_' || this.charIsLetter(char) || this.charIsNumber(char);
+
+  static normalizeDefs(defs: Array<string | StringTokenizerMatcher>, defaultType: string): StringTokenizerMatcherNormalized[] {
+    return defs.map((def) => {
+      if (typeof def === 'string') {
+        return { type: defaultType, matches: [def] };
+      }
+      return { ...def, matches: Array.isArray(def.matches) ? def.matches : [def.matches] };
+    });
   }
 }
 

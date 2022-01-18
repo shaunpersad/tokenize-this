@@ -1,27 +1,18 @@
-export type TokenizerState = { position: number, buffer: string };
+import Tokenizer, { TokenizerChunk } from './Tokenizer';
 
-export type TokenizerToken = { state: TokenizerState, value: string, type?: string };
+export type RegexTokenizerMatcher = { type: string, matches: RegExp };
 
-export type TokenizerEmitter = (token: TokenizerToken) => void;
+export type RegexTokenizerGreedyMatcher = { type: string, startsWith: RegExp, endsWith: RegExp };
 
-export type TokenizerMatcher = { type: string, query: RegExp };
-
-export type TokenizerGreedyMatcherQuery = { openedBy: RegExp, closedBy: RegExp };
-
-export type TokenizerGreedyMatcher = { type: string, query: TokenizerGreedyMatcherQuery };
-
-export type TokenizerConfig = {
-  matchers: TokenizerMatcher[],
-  greedyMatchers: TokenizerGreedyMatcher[],
+export type RegexTokenizerConfig = {
+  matchers?: RegexTokenizerMatcher[],
+  greedyMatchers?: RegexTokenizerGreedyMatcher[],
   delimiters: RegExp,
-  delimiterType?: string,
 };
 
-export default class RegexTokenizer {
+export default class RegexTokenizer extends Tokenizer {
 
   readonly types: string[] = [];
-
-  readonly delimiterType?: string;
 
   readonly query: RegExp;
 
@@ -29,21 +20,20 @@ export default class RegexTokenizer {
 
   buffer = '';
 
-  constructor({ matchers, greedyMatchers, delimiters, delimiterType }: TokenizerConfig) {
-    this.delimiterType = delimiterType;
+  constructor({ matchers = [], greedyMatchers = [], delimiters }: RegexTokenizerConfig) {
+    super();
     this.query = new RegExp(
       greedyMatchers
         .flatMap(
-          ({ type, query }) => {
-            const { openedBy, closedBy } = query;
+          ({ type, startsWith, endsWith }) => {
             this.types.push(type, '');
-            return [`(${openedBy.source}${closedBy.source})`, `(${openedBy.source})`];
+            return [`(${startsWith.source}${endsWith.source})`, `(${startsWith.source})`];
           },
         )
         .concat(
-          matchers.map(({ type, query }) => {
+          matchers.map(({ type, matches }) => {
             this.types.push(type);
-            return `(${query.source})`;
+            return `(${matches.source})`;
           },
           ),
         )
@@ -53,28 +43,21 @@ export default class RegexTokenizer {
     );
   }
 
-  get state(): TokenizerState {
-    const { position, buffer } = this;
-    return { position, buffer };
-  }
-
-
-  transform(chunk: string | Buffer, forEachToken: TokenizerEmitter): void {
-    this.query.lastIndex = 0;
-    const { query, buffer, types, delimiterType } = this;
+  transform(chunk: TokenizerChunk): void {
+    const { query, buffer, types } = this;
     const str = `${buffer}${chunk.toString('utf8')}`;
     const numTypes = types.length;
     let lastEndIndex = 0;
-    let lastState = this.state;
     let match;
+    query.lastIndex = 0;
     while (match = query.exec(str)) {
       const value = match[0];
       const { index } = match;
-      if (index - lastEndIndex) this.send(forEachToken, str.substring(lastEndIndex, index), lastState);
+      if (index - lastEndIndex) this.send(str.substring(lastEndIndex, index));
       for (let x = 0; x < numTypes; x++) {
         if (match[x + 1] !== undefined) {
           if (types[x]) {
-            this.send(forEachToken, value, lastState, types[x]);
+            this.send(value, types[x]);
           } else { // ignore the partial greedy match
             query.lastIndex = lastEndIndex; // reset back to the beginning of the greedy match
           }
@@ -82,42 +65,27 @@ export default class RegexTokenizer {
         }
       }
       if (match[numTypes + 1] !== undefined) { // we hit a delimiter
-        delimiterType ? this.send(forEachToken, value, lastState, delimiterType) : this.position += value.length;
+        this.send(value, RegexTokenizer.defaultDelimiterType);
       }
       lastEndIndex = index + value.length;
-      lastState = this.state;
     }
     this.buffer = str.substring(lastEndIndex);
   }
 
-  /**
-   * Call when the stream has ended.
-   */
-  flush(forEachToken: TokenizerEmitter): void {
-    this.send(forEachToken, this.buffer);
+  flush(): void {
+    this.send(this.buffer);
   }
 
-  /**
-   * Allows us to reset back to a particular token.
-   */
-  resetTo(token?: TokenizerToken | null): void {
-    this.position = !token ? 0 : token.state.position + token.value.length;
-    this.buffer = !token ? '' : token.state.buffer;
+  reset(position = 0): void {
+    this.position = position;
+    this.buffer = '';
   }
 
-  /**
-   * Parses a string in its entirety. Use when you have the full string already.
-   */
-  tokenize(chunk: string | Buffer, forEachToken: TokenizerEmitter) {
-    this.transform(chunk, forEachToken);
-    this.flush(forEachToken);
+  protected send(value: string, type = RegexTokenizer.unknownType) {
+    super.send(value, type);
   }
 
-  /**
-   * Calls the emitter with the next token.
-   */
-  protected send(forEachToken: TokenizerEmitter, value: string, state = this.state, type?: string): void {
-    if (value) forEachToken({ state, value, type });
-    this.position += value.length;
-  }
+  static defaultDelimiterType = 'DELIMITER';
+
+  static unknownType = 'UNKNOWN';
 }

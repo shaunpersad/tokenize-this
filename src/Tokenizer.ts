@@ -17,10 +17,10 @@ export default abstract class Tokenizer {
    * Call when the stream has ended.
    */
   abstract flush(): void;
-  // /**
-  //  * Allows us to reset back to a particular token.
-  //  */
-  // abstract reset(beforeToken?: TokenizerToken | null): void;
+  /**
+   * Allows us to reset back to a particular position.
+   */
+  abstract reset(position?: number): void;
   /**
    * Parses a string in its entirety. Use when you have the full string already.
    */

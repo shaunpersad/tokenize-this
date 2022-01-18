@@ -1,8 +1,9 @@
 export type CharNodeExecute = (str: string, startIndex: number, currentIndex: number) => void;
 export type CharNodeGetDefaultChild = (char: string, parent: CharNode) => CharNode;
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface CharNodeJSON extends Record<string, CharNodeJSON> {}
 
 export default class CharNode {
-  readonly char: string = '';
 
   readonly children: Map<string, CharNode> = new Map<string, CharNode>();
 
@@ -10,14 +11,10 @@ export default class CharNode {
 
   getDefaultChild: CharNodeGetDefaultChild = () => this;
 
-  constructor(char = '') {
-    this.char = char;
-  }
-
   addChild(char: string): CharNode {
     const { children } = this;
     if (!children.has(char)) {
-      children.set(char, new CharNode(char));
+      children.set(char, new CharNode());
     }
     return children.get(char) as CharNode;
   }
@@ -39,13 +36,19 @@ export default class CharNode {
     return node;
   }
 
-  toJSON(): any {
-    return {
-      char: this.char,
-      children: Array.from(this.children.entries()).reduce((obj, [key, value]) => {
-        return { ...obj, [key]: value.toJSON() };
-      }, {} as Record<string, CharNode>),
-    };
+  getDescendant(str: string): CharNode {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let node: CharNode = this;
+    for (let x = 0; x < str.length; x++) {
+      node = node.getChild(str.charAt(x));
+    }
+    return node;
+  }
+
+  toJSON(): CharNodeJSON {
+    return Array.from(this.children.entries()).reduce((obj, [key, value]) => {
+      return { ...obj, [key]: value.toJSON() };
+    }, {} as CharNodeJSON);
   }
 
   toString(): string {
