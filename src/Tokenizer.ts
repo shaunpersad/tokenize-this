@@ -10,6 +10,8 @@ export type TokenizerTokenTransformer = (token: TokenizerToken) => TokenizerToke
 
 export type TokenizerEmitter = (token: TokenizerToken) => void;
 
+export type TokenizerCharTest = (char: string) => boolean;
+
 export type TokenizerMatcher = { type: string, matches: string | string[] };
 
 export type TokenizerGreedyMatcher = {
@@ -21,12 +23,21 @@ export type TokenizerGreedyMatcher = {
 };
 
 export type TokenizerConfig = {
+  unnamedKeywordType?: string,
+  unnamedPunctuationType?: string,
+  unnamedDelimiterType?: string,
+  identifierType?: string,
+  numberType?: string,
+  numberFloatType?: string,
+  haltedTypePrefix?: string,
+  unknownType?: string,
+  charIsStartOfIdentifier?: TokenizerCharTest,
+  charIsInIdentifier?: TokenizerCharTest,
   keywords?: Array<string | TokenizerMatcher>,
   punctuation?: Array<string | TokenizerMatcher>,
+  delimiters?: Array<string | TokenizerMatcher>,
   greedyMatchers?: TokenizerGreedyMatcher[],
-  delimiters: Array<string | TokenizerMatcher>,
   floatsHaveLeadingNumber?: boolean,
-  includeUnnamedDelimiters?: boolean,
   transformer?: TokenizerTokenTransformer,
 };
 
@@ -57,13 +68,20 @@ export default class Tokenizer {
   protected forEachToken: TokenizerEmitter = noOp;
 
   constructor(config: TokenizerConfig) {
-    const { defaultKeywordType, defaultPunctuationType, defaultDelimiterType } = Tokenizer;
-    const { identifierType, numberType, numberFloatType, haltedTypePrefix, unknownType } = Tokenizer;
-    const { charIsNumber, charIsStartOfIdentifier, charIsInIdentifier } = Tokenizer;
-    const keywords = Tokenizer.normalizeDefs(config.keywords || [], defaultKeywordType);
-    const punctuation = Tokenizer.normalizeDefs(config.punctuation || [], defaultPunctuationType);
-    const delimiters = Tokenizer.normalizeDefs(config.delimiters || [], defaultDelimiterType);
-    const delimitersWithEOF = delimiters.concat({ type: defaultDelimiterType, matches: [EOF] });
+    const unnamedKeywordType = config.unnamedKeywordType || Tokenizer.defaultKeywordType;
+    const unnamedPunctuationType = config.unnamedPunctuationType || Tokenizer.defaultPunctuationType;
+    const unnamedDelimiterType = config.unnamedDelimiterType || Tokenizer.defaultDelimiterType;
+    const identifierType = config.identifierType || Tokenizer.defaultIdentifierType;
+    const numberType = config.numberType || Tokenizer.defaultNumberType;
+    const numberFloatType = config.numberFloatType || Tokenizer.defaultNumberFloatType;
+    const haltedTypePrefix = config.haltedTypePrefix || Tokenizer.defaultHaltedTypePrefix;
+    const unknownType = config.unknownType || Tokenizer.defaultUnknownType;
+    const charIsStartOfIdentifier = config.charIsStartOfIdentifier || Tokenizer.defaultCharIsStartOfIdentifier;
+    const charIsInIdentifier = config.charIsInIdentifier || Tokenizer.defaultCharIsInIdentifier;
+    const keywords = Tokenizer.normalizeDefs(config.keywords || [], unnamedKeywordType);
+    const punctuation = Tokenizer.normalizeDefs(config.punctuation || [], unnamedPunctuationType);
+    const delimiters = Tokenizer.normalizeDefs(config.delimiters || [], unnamedDelimiterType);
+    const delimitersWithEOF = delimiters.concat({ type: unnamedDelimiterType, matches: [EOF] });
     const greedyMatchers = config.greedyMatchers || [];
     const floatsHaveLeadingNumber = config.floatsHaveLeadingNumber || false;
     const { unknownNode, identifierNode, numberNode } = this;
@@ -77,9 +95,9 @@ export default class Tokenizer {
     // These either continue to be what they are if they pass their test, or they become unknown.
     identifierNode.getDefaultChild = (char) => charIsInIdentifier(char) ? identifierNode : unknownNode;
     waitToTokenize(identifierNode, identifierType);
-    numberNode.getDefaultChild = (char) => charIsNumber(char) ? numberNode : unknownNode;
+    numberNode.getDefaultChild = (char) => Tokenizer.charIsNumber(char) ? numberNode : unknownNode;
     waitToTokenize(numberNode, numberType);
-    numberFloatNode.getDefaultChild = (char) => charIsNumber(char) ? numberFloatNode : unknownNode;
+    numberFloatNode.getDefaultChild = (char) => Tokenizer.charIsNumber(char) ? numberFloatNode : unknownNode;
     waitToTokenize(numberFloatNode, numberFloatType);
 
     keywords.forEach(
@@ -94,6 +112,26 @@ export default class Tokenizer {
           // Keywords decay into identifiers if there are more characters present in the token.
           node.getDefaultChild = identifierNode.getDefaultChild;
           waitToTokenize(node, keyword.type);
+        },
+      ),
+    );
+    punctuation.forEach(
+      ({ type, matches }) => matches.forEach(
+        (value) => {
+          const node = this.rootNode.addDescendant(value);
+          // Only send punctuation after it ends, and immediately decay to a node dictated by the next character.
+          node.getDefaultChild = (char) => {
+            this.send(value, type);
+            return this.rootNode.getChild(char);
+          };
+        },
+      ),
+    );
+    delimiters.forEach(
+      ({ type, matches }) => matches.forEach(
+        (value) => {
+          const node = this.rootNode.addDescendant(value);
+          node.execute = () => this.send(value, type);
         },
       ),
     );
@@ -112,32 +150,12 @@ export default class Tokenizer {
         escapesWith ? this.sendIfNotEscaped(node, haltedType, haltsWith, escapesWith) : this.sendImmediately(node, haltedType, haltsWith);
       },
     );
-    delimiters.forEach(
-      ({ type, matches }) => matches.forEach(
-        (value) => {
-          const node = this.rootNode.addDescendant(value);
-          node.execute = () => this.send(value, type);
-        },
-      ),
-    );
-    punctuation.forEach(
-      ({ type, matches }) => matches.forEach(
-        (value) => {
-          const node = this.rootNode.addDescendant(value);
-          // Only send punctuation after it ends, and immediately decay to a node dictated by the next character.
-          node.getDefaultChild = (char) => {
-            this.send(value, type);
-            return this.rootNode.getChild(char);
-          };
-        },
-      ),
-    );
     if (!floatsHaveLeadingNumber) {
       this.rootNode.children.set(DECIMAL_POINT, numberFloatNode);
     }
     this.rootNode.getDefaultChild = (char) => {
       if (charIsStartOfIdentifier(char)) return identifierNode;
-      if (charIsNumber(char)) return numberNode;
+      if (Tokenizer.charIsNumber(char)) return numberNode;
       return unknownNode;
     };
     this.config = config;
@@ -223,14 +241,13 @@ export default class Tokenizer {
    * Sends the next token.
    */
   protected send(value: string, type: string): void {
-    const { config, position } = this;
-    const { includeUnnamedDelimiters, transformer } = config;
-    if (value && (type !== Tokenizer.defaultDelimiterType || includeUnnamedDelimiters)) {
+    const { config: { transformer }, position } = this;
+    if (value && type) {
       if (transformer) {
         const tokens = transformer({ value, type, position });
         for (let x = 0; x < tokens.length; x++) {
           const token = tokens[x];
-          token.value && this.forEachToken(token);
+          token.value && token.type && this.forEachToken(token);
         }
       } else {
         this.forEachToken({ value, type, position });
@@ -306,25 +323,26 @@ export default class Tokenizer {
 
   static readonly defaultPunctuationType = 'PUNCTUATION';
 
-  static readonly defaultDelimiterType = 'DELIMITER';
+  static readonly defaultDelimiterType = '';
 
-  static readonly identifierType = 'IDENTIFIER';
+  static readonly defaultIdentifierType = 'IDENTIFIER';
 
-  static readonly numberType = 'NUMBER';
+  static readonly defaultNumberType = 'NUMBER';
 
-  static readonly numberFloatType = this.numberType;
+  static readonly defaultNumberFloatType = this.defaultNumberType;
 
-  static readonly haltedTypePrefix = 'HALTED_';
+  static readonly defaultHaltedTypePrefix = 'HALTED_';
 
-  static readonly unknownType = 'UNKNOWN';
+  static readonly defaultUnknownType = 'UNKNOWN';
 
-  static readonly charIsLetter = (char: string) => (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+  static readonly defaultCharIsStartOfIdentifier: TokenizerCharTest = (char: string) =>
+    char === '_' ||
+    this.charIsLetter(char);
 
-  static readonly charIsNumber = (char: string) => (char >= '0' && char <= '9');
-
-  static readonly charIsStartOfIdentifier = (char: string) => char === '_' || this.charIsLetter(char);
-
-  static readonly charIsInIdentifier = (char: string) => char === '_' || this.charIsLetter(char) || this.charIsNumber(char);
+  static readonly defaultCharIsInIdentifier: TokenizerCharTest = (char: string) =>
+    char === '_' ||
+    this.charIsLetter(char) ||
+    this.charIsNumber(char);
 
   protected static normalizeDefs(defs: Array<string | TokenizerMatcher>, defaultType: string): TokenizerMatcherNormalized[] {
     return defs.map((def) => {
@@ -333,6 +351,14 @@ export default class Tokenizer {
       }
       return { ...def, matches: Array.isArray(def.matches) ? def.matches : [def.matches] };
     });
+  }
+
+  protected static charIsLetter(char: string) {
+    return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
+  }
+
+  protected static charIsNumber(char: string) {
+    return (char >= '0' && char <= '9');
   }
 }
 
