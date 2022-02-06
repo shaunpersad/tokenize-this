@@ -1,14 +1,24 @@
 export type CharNodeExecute = (str: string, startIndex: number, currentIndex: number) => void;
-export type CharNodeGetDefaultChild = (char: string, parent: CharNode) => CharNode;
+export type CharNodeGetDefaultChild = (char: string) => CharNode;
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface CharNodeJSON extends Record<string, CharNodeJSON> {}
 
 export default class CharNode {
-
+  /**
+   * The next possible characters that lead to a valid token.
+   */
   readonly children: Map<string, CharNode> = new Map<string, CharNode>();
 
-  execute: CharNodeExecute = () => 0;
+  /**
+   * What to do when we encounter this node.
+   * By default, do nothing.
+   */
+  execute: CharNodeExecute = () => {};
 
+  /**
+   * What node to send back if we don't have a child for this char.
+   * By default, send back the same node.
+   */
   getDefaultChild: CharNodeGetDefaultChild = () => this;
 
   addChild(char: string): CharNode {
@@ -20,7 +30,7 @@ export default class CharNode {
   }
 
   getChild(char: string): CharNode {
-    return this.children.get(char) || this.getDefaultChild(char, this);
+    return this.children.get(char) || this.getDefaultChild(char);
   }
 
   addDescendant(str: string): CharNode {

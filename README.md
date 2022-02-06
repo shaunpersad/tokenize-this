@@ -1,4 +1,13 @@
 # TokenizeThis
+Turns a string into tokens.
+
+### How it works
+This tokenizer is *not* regex-based, but instead builds a graph of characters.
+
+The graph is traversed through each new character in the input, and emits tokens when the proper conditions are met.
+This makes the tokenization process orders of magnitude faster than regex-based tokenizers.
+
+Additionally, the tokenizer can be used to tokenize the entire input at once, or as an input stream.
 
 ## Quickstart
 
