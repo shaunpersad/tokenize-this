@@ -6,8 +6,6 @@ export type TokenizerChunk = { toString: () => string };
 
 export type TokenizerToken = { value: string, position: number, type: string };
 
-export type TokenizerTokenTransformer = (token: TokenizerToken) => TokenizerToken[];
-
 export type TokenizerEmitter = (token: TokenizerToken) => void;
 
 export type TokenizerCharTest = (char: string) => boolean;
@@ -20,6 +18,7 @@ export type TokenizerGreedyMatcher = {
   endsWith?: string,
   haltsWith?: string,
   escapesWith?: string,
+  subConfig?: TokenizerConfig,
 };
 
 export type TokenizerConfig = {
@@ -38,14 +37,12 @@ export type TokenizerConfig = {
   delimiters?: Array<string | TokenizerMatcher>,
   greedyMatchers?: TokenizerGreedyMatcher[],
   floatsHaveLeadingNumber?: boolean,
-  transformer?: TokenizerTokenTransformer,
 };
 
 export type TokenizerMatcherNormalized = { type: string, matches: string[] };
 
 const EOF = '';
 const DECIMAL_POINT = '.';
-const noOp = () => {};
 
 export default class Tokenizer {
 
@@ -65,7 +62,7 @@ export default class Tokenizer {
 
   protected position = 0;
 
-  protected forEachToken: TokenizerEmitter = noOp;
+  protected forEachToken: TokenizerEmitter = () => {};
 
   constructor(config: TokenizerConfig) {
     const unnamedKeywordType = config.unnamedKeywordType || Tokenizer.defaultKeywordType;
@@ -90,6 +87,10 @@ export default class Tokenizer {
     const waitToTokenize = (node: CharNode, type: string): void => {
       this.sendOnceEncountered(node, type, delimitersWithEOF);
       this.sendOnceEncountered(node, type, punctuation);
+      this.sendOnceEncountered(node, type, Tokenizer.normalizeDefs(
+        greedyMatchers.map(({ startsWith }) => startsWith),
+        '',
+      ));
     };
     waitToTokenize(unknownNode, unknownType);
     // These either continue to be what they are if they pass their test, or they become unknown.
@@ -103,14 +104,15 @@ export default class Tokenizer {
     keywords.forEach(
       (keyword) => keyword.matches.forEach(
         (value) => {
+          const couldBeIdentifier = charIsStartOfIdentifier(value[0]);
           let node = this.rootNode;
           [...value].forEach((char) => {
             node = node.addChild(char);
-            // If a keyword is cut short, it becomes an identifier.
-            waitToTokenize(node, identifierType);
+            // If a keyword is cut short, it decays into another type.
+            waitToTokenize(node, couldBeIdentifier ? identifierType : unknownType);
           });
-          // Keywords decay into identifiers if there are more characters present in the token.
-          node.getDefaultChild = identifierNode.getDefaultChild;
+          // If a keyword goes beyond its characters, it decays into another type.
+          node.getDefaultChild = couldBeIdentifier ? identifierNode.getDefaultChild : unknownNode.getDefaultChild;
           waitToTokenize(node, keyword.type);
         },
       ),
@@ -136,18 +138,23 @@ export default class Tokenizer {
       ),
     );
     greedyMatchers.forEach(
-      ({ type, startsWith, endsWith = '', haltsWith = '', escapesWith = '' }) => {
+      ({ type, startsWith, endsWith, haltsWith, escapesWith, subConfig }) => {
         const haltedType = `${haltedTypePrefix}${type}`;
         const node = this.rootNode.addDescendant(startsWith);
+        const subTokenizer = subConfig ? new Tokenizer(subConfig) : undefined;
+        if (subTokenizer) {
+          node.execute = (str, startIndex, currentIndex) => subTokenizer.transform(str[currentIndex]);
+          subTokenizer.forEachToken = (token) => this.forEachToken({ ...token, position: token.position + this.position });
+        }
         // End on a delimiter or punctuation if no explicit ending is specified.
         if (!endsWith) return waitToTokenize(node, type);
         // Create a halted token if we reach the end without completing the match.
-        this.sendImmediately(node, haltedType, EOF);
+        this.sendIfNotEscaped(node, haltedType, EOF);
         // Complete the match when we encounter the unescaped end.
-        escapesWith ? this.sendIfNotEscaped(node, type, endsWith, escapesWith) : this.sendImmediately(node, type, endsWith);
+        this.sendIfNotEscaped(node, type, endsWith, escapesWith, subTokenizer);
         if (!haltsWith) return;
         // If a halt is specified, create a halted token when we encounter the unescaped halt.
-        escapesWith ? this.sendIfNotEscaped(node, haltedType, haltsWith, escapesWith) : this.sendImmediately(node, haltedType, haltsWith);
+        this.sendIfNotEscaped(node, haltedType, haltsWith, escapesWith);
       },
     );
     if (!floatsHaveLeadingNumber) {
@@ -186,11 +193,75 @@ export default class Tokenizer {
   /**
    * Resets the tokenizer's state so that it can be reused.
    */
-  protected reset(position = 0): void {
-    this.forEachToken = noOp;
+  protected reset(position = 0, forEachToken = this.forEachToken): void {
+    this.forEachToken = forEachToken;
     this.position = position;
     this.stateNode = this.rootNode;
     this.buffer = '';
+  }
+
+  /**
+   * Sends the next token.
+   */
+  protected send(value: string, type: string): void {
+    if (value && type) this.forEachToken({ value, type, position: this.position });
+    this.position += value.length;
+    this.stateNode = this.rootNode;
+  }
+
+  /**
+   * Sends the current token as soon as we come across the string specified by "encountered" that is not escaped,
+   * which is treated as part of the token.
+   *
+   * Currently, this method backtracks, as the assumption is that escapes rarely happen
+   * v.s. the additional overhead of always keeping track of the number of escape characters encountered prior.
+   * We can revisit this tradeoff once measured.
+   */
+  protected sendIfNotEscaped(node: CharNode, type: string, encountered: string, escapeChar = '', subTokenizer?: Tokenizer): void {
+    const encounteredNode = node.addDescendant(encountered);
+    encounteredNode.execute = (str, startIndex, currentIndex) => {
+      subTokenizer?.transform(str[currentIndex]);
+      let escapeIndex = currentIndex - encountered.length;
+      let numInstances = 0;
+      while (escapeChar && escapeIndex >= 0) {
+        if (str[escapeIndex] != escapeChar) {
+          break;
+        }
+        numInstances++;
+        escapeIndex--;
+      }
+      const escaped = numInstances % 2;
+      if (!numInstances || !escaped) {
+        if (subTokenizer) {
+          subTokenizer.flush();
+          subTokenizer.reset();
+        }
+        const value = str.substring(startIndex, currentIndex + 1);
+        this.send(value, type);
+      }
+    };
+  }
+
+  /**
+   * Sends the current token as soon as we come across any of the tokens specified by "encountered",
+   * which are separate tokens from the current.
+   *
+   * E.g. sending the current token if punctuation or delimiter tokens are encountered.
+   */
+  protected sendOnceEncountered(node: CharNode, type: string, encountered: TokenizerMatcherNormalized[]): void {
+    encountered.forEach(
+      ({ matches }) => matches.forEach(
+        (encounteredValue) => {
+          const encounteredNode = node.addDescendant(encounteredValue);
+          encounteredNode.execute = (str, startIndex, currentIndex) => {
+            const value = str.substring(startIndex, (currentIndex + 1) - encounteredValue.length);
+            this.send(value, type);
+            this.stateNode = this.rootNode.getDescendant(encounteredValue);
+            this.stateNode.execute(str, startIndex, currentIndex);
+          };
+        },
+      ),
+    );
   }
 
   /**
@@ -235,88 +306,6 @@ export default class Tokenizer {
         this.flush();
       },
     };
-  }
-
-  /**
-   * Sends the next token.
-   */
-  protected send(value: string, type: string): void {
-    const { config: { transformer }, position } = this;
-    if (value && type) {
-      if (transformer) {
-        const tokens = transformer({ value, type, position });
-        for (let x = 0; x < tokens.length; x++) {
-          const token = tokens[x];
-          token.value && token.type && this.forEachToken(token);
-        }
-      } else {
-        this.forEachToken({ value, type, position });
-      }
-    }
-    this.position += value.length;
-    this.stateNode = this.rootNode;
-  }
-
-  /**
-   * Sends the current token as soon as we come across the string specified by "encountered",
-   * which is treated as part of the token.
-   */
-  protected sendImmediately(node: CharNode, type: string, encountered: string): void {
-    const encounteredNode = node.addDescendant(encountered);
-    encounteredNode.execute = (str, startIndex, currentIndex) => {
-      const value = str.substring(startIndex, currentIndex + 1);
-      this.send(value, type);
-    };
-  }
-
-  /**
-   * Sends the current token as soon as we come across the string specified by "encountered" that is not escaped,
-   * which is treated as part of the token.
-   *
-   * Currently, this method backtracks, as the assumption is that escapes rarely happen
-   * v.s. the additional overhead of always keeping track of the number of escape characters encountered prior.
-   * We can revisit this tradeoff once measured.
-   */
-  protected sendIfNotEscaped(node: CharNode, type: string, encountered: string, escapeChar: string): void {
-    const encounteredNode = node.addDescendant(encountered);
-    encounteredNode.execute = (str, startIndex, currentIndex) => {
-      let escapeIndex = currentIndex - encountered.length;
-      let numInstances = 0;
-      while (escapeIndex >= 0) {
-        if (str.charAt(escapeIndex) != escapeChar) {
-          break;
-        }
-        numInstances++;
-        escapeIndex--;
-      }
-      const escaped = numInstances % 2;
-      if (!numInstances || !escaped) {
-        const value = str.substring(startIndex, currentIndex + 1);
-        this.send(value, type);
-      }
-    };
-  }
-
-  /**
-   * Sends the current token as soon as we come across any of the tokens specified by "encountered",
-   * which are separate tokens from the current.
-   *
-   * E.g. sending the current token if punctuation or delimiter tokens are encountered.
-   */
-  protected sendOnceEncountered(node: CharNode, type: string, encountered: TokenizerMatcherNormalized[]): void {
-    encountered.forEach(
-      ({ matches }) => matches.forEach(
-        (encounteredValue) => {
-          const encounteredNode = node.addDescendant(encounteredValue);
-          encounteredNode.execute = (str, startIndex, currentIndex) => {
-            const value = str.substring(startIndex, (currentIndex + 1) - encounteredValue.length);
-            this.send(value, type);
-            this.stateNode = this.rootNode.getDescendant(encounteredValue);
-            this.stateNode.execute(str, startIndex, currentIndex);
-          };
-        },
-      ),
-    );
   }
 
   static readonly defaultKeywordType = 'KEYWORD';

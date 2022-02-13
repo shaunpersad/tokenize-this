@@ -1,3 +1,6 @@
+## TODO
+[] get rid of `execute`
+
 # TokenizeThis
 Turns a string into tokens.
 
