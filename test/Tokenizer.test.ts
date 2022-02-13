@@ -195,98 +195,139 @@ describe('Examples', () => {
     const tokens = tokenizer
       .tokenize(str)
       .map(
-        ({ type, value, position }) => ({ type, value: value.trim(), position }))
+        ({ type, value, position }) => ({ value: value.trim(), type, position }))
       .filter(
         ({ value }) => value,
       );
     expect(tokens).to.eql([
-      { type: 'PUNCTUATION', value: '<', position: 0 },
-      { type: 'PUNCTUATION', value: '?', position: 1 },
-      { type: 'IDENTIFIER', value: 'xml-stylesheet', position: 2 },
-      { type: 'IDENTIFIER', value: 'href', position: 17 },
-      { type: 'PUNCTUATION', value: '=', position: 21 },
-      { type: 'STRING', value: '"catalog.xsl"', position: 22 },
-      { type: 'IDENTIFIER', value: 'type', position: 36 },
-      { type: 'PUNCTUATION', value: '=', position: 40 },
-      { type: 'STRING', value: '"text/xsl"', position: 41 },
-      { type: 'PUNCTUATION', value: '?', position: 51 },
-      { type: 'PUNCTUATION', value: '>', position: 52 },
-      { type: 'PUNCTUATION', value: '<', position: 61 },
-      { type: 'PUNCTUATION', value: '!', position: 62 },
-      { type: 'IDENTIFIER', value: 'DOCTYPE', position: 63 },
-      { type: 'IDENTIFIER', value: 'catalog', position: 71 },
-      { type: 'IDENTIFIER', value: 'SYSTEM', position: 79 },
-      { type: 'STRING', value: '"catalog.dtd"', position: 86 },
-      { type: 'PUNCTUATION', value: '>', position: 99 },
-      { type: 'PUNCTUATION', value: '<', position: 108 },
-      { type: 'IDENTIFIER', value: 'catalog', position: 109 },
-      { type: 'PUNCTUATION', value: '>', position: 116 },
-      { type: 'PUNCTUATION', value: '<', position: 127 },
-      { type: 'IDENTIFIER', value: 'product', position: 128 },
-      { type: 'IDENTIFIER', value: 'description', position: 136 },
-      { type: 'PUNCTUATION', value: '=', position: 147 },
-      { type: 'STRING', value: '"Cardigan Sweater"', position: 148 },
-      { type: 'IDENTIFIER', value: 'product_image', position: 167 },
-      { type: 'PUNCTUATION', value: '=', position: 180 },
-      { type: 'STRING', value: '"cardigan.jpg"', position: 181 },
-      { type: 'PUNCTUATION', value: '>', position: 195 },
-      { type: 'PUNCTUATION', value: '<', position: 209 },
-      { type: 'IDENTIFIER', value: 'size', position: 210 },
-      { type: 'IDENTIFIER', value: 'description', position: 215 },
-      { type: 'PUNCTUATION', value: '=', position: 226 },
-      { type: 'STRING', value: '"Large"', position: 227 },
-      { type: 'PUNCTUATION', value: '/', position: 235 },
-      { type: 'PUNCTUATION', value: '>', position: 236 },
-      { type: 'PUNCTUATION', value: '<', position: 250 },
-      { type: 'IDENTIFIER', value: 'color_swatch', position: 251 },
-      { type: 'IDENTIFIER', value: 'image', position: 264 },
-      { type: 'PUNCTUATION', value: '=', position: 269 },
-      { type: 'STRING', value: '"red_cardigan.jpg"', position: 270 },
-      { type: 'PUNCTUATION', value: '>', position: 288 },
-      { type: 'UNKNOWN', value: 'Red cardigan', position: 290 },
-      { type: 'UNKNOWN', value: 'Line two', position: 317 },
-      { type: 'PUNCTUATION', value: '<', position: 352 },
-      { type: 'PUNCTUATION', value: '/', position: 353 },
-      { type: 'IDENTIFIER', value: 'color_swatch', position: 354 },
-      { type: 'PUNCTUATION', value: '>', position: 366 },
-      { type: 'PUNCTUATION', value: '<', position: 377 },
-      { type: 'PUNCTUATION', value: '/', position: 378 },
-      { type: 'IDENTIFIER', value: 'product', position: 379 },
-      { type: 'PUNCTUATION', value: '>', position: 386 },
-      { type: 'PUNCTUATION', value: '<', position: 394 },
-      { type: 'PUNCTUATION', value: '/', position: 395 },
-      { type: 'IDENTIFIER', value: 'catalog', position: 396 },
-      { type: 'PUNCTUATION', value: '>', position: 403 },
+      { value: '<', type: 'PUNCTUATION', position: 0 },
+      { value: '?', type: 'PUNCTUATION', position: 1 },
+      { value: 'xml-stylesheet', type: 'IDENTIFIER', position: 2 },
+      { value: 'href', type: 'IDENTIFIER', position: 17 },
+      { value: '=', type: 'PUNCTUATION', position: 21 },
+      { value: '"catalog.xsl"', type: 'STRING', position: 22 },
+      { value: 'type', type: 'IDENTIFIER', position: 36 },
+      { value: '=', type: 'PUNCTUATION', position: 40 },
+      { value: '"text/xsl"', type: 'STRING', position: 41 },
+      { value: '?', type: 'PUNCTUATION', position: 51 },
+      { value: '>', type: 'PUNCTUATION', position: 52 },
+      { value: '<', type: 'PUNCTUATION', position: 61 },
+      { value: '!', type: 'PUNCTUATION', position: 62 },
+      { value: 'DOCTYPE', type: 'IDENTIFIER', position: 63 },
+      { value: 'catalog', type: 'IDENTIFIER', position: 71 },
+      { value: 'SYSTEM', type: 'IDENTIFIER', position: 79 },
+      { value: '"catalog.dtd"', type: 'STRING', position: 86 },
+      { value: '>', type: 'PUNCTUATION', position: 99 },
+      { value: '<', type: 'PUNCTUATION', position: 108 },
+      { value: 'catalog', type: 'IDENTIFIER', position: 109 },
+      { value: '>', type: 'PUNCTUATION', position: 116 },
+      { value: '<', type: 'PUNCTUATION', position: 127 },
+      { value: 'product', type: 'IDENTIFIER', position: 128 },
+      { value: 'description', type: 'IDENTIFIER', position: 136 },
+      { value: '=', type: 'PUNCTUATION', position: 147 },
+      { value: '"Cardigan Sweater"', type: 'STRING', position: 148 },
+      { value: 'product_image', type: 'IDENTIFIER', position: 167 },
+      { value: '=', type: 'PUNCTUATION', position: 180 },
+      { value: '"cardigan.jpg"', type: 'STRING', position: 181 },
+      { value: '>', type: 'PUNCTUATION', position: 195 },
+      { value: '<', type: 'PUNCTUATION', position: 209 },
+      { value: 'size', type: 'IDENTIFIER', position: 210 },
+      { value: 'description', type: 'IDENTIFIER', position: 215 },
+      { value: '=', type: 'PUNCTUATION', position: 226 },
+      { value: '"Large"', type: 'STRING', position: 227 },
+      { value: '/', type: 'PUNCTUATION', position: 235 },
+      { value: '>', type: 'PUNCTUATION', position: 236 },
+      { value: '<', type: 'PUNCTUATION', position: 250 },
+      { value: 'color_swatch', type: 'IDENTIFIER', position: 251 },
+      { value: 'image', type: 'IDENTIFIER', position: 264 },
+      { value: '=', type: 'PUNCTUATION', position: 269 },
+      { value: '"red_cardigan.jpg"', type: 'STRING', position: 270 },
+      { value: '>', type: 'PUNCTUATION', position: 288 },
+      { value: 'Red cardigan', type: 'UNKNOWN', position: 290 },
+      { value: 'Line two', type: 'UNKNOWN', position: 317 },
+      { value: '<', type: 'PUNCTUATION', position: 352 },
+      { value: '/', type: 'PUNCTUATION', position: 353 },
+      { value: 'color_swatch', type: 'IDENTIFIER', position: 354 },
+      { value: '>', type: 'PUNCTUATION', position: 366 },
+      { value: '<', type: 'PUNCTUATION', position: 377 },
+      { value: '/', type: 'PUNCTUATION', position: 378 },
+      { value: 'product', type: 'IDENTIFIER', position: 379 },
+      { value: '>', type: 'PUNCTUATION', position: 386 },
+      { value: '<', type: 'PUNCTUATION', position: 394 },
+      { value: '/', type: 'PUNCTUATION', position: 395 },
+      { value: 'catalog', type: 'IDENTIFIER', position: 396 },
+      { value: '>', type: 'PUNCTUATION', position: 403 },
     ]);
   });
 
   it('GraphQL', () => {
     const tokenizer = new Tokenizer({
       keywords: [
-        { type: 'BOOLEAN', matches: ['true', 'false'] },
         'type',
       ],
       punctuation: [
-        '[', ']', '(', ')', '{', '}', ':', ',', '!',
+        '{', '}', '!', ',',
       ],
       delimiters: [
         '\n', ' ', '\r', '\t',
       ],
       greedyMatchers: [
-        { type: 'STRING', startsWith: '"', endsWith: '"', escapesWith: '\\' },
         { type: 'COMMENT', startsWith: '"""', endsWith: '"""' },
         { type: 'DIRECTIVE', startsWith: '@' },
+        {
+          type: '',
+          startsWith: '(',
+          endsWith: ')',
+          subConfig: {
+            keywords: [
+              { type: 'BOOLEAN', matches: ['true', 'false'] },
+            ],
+            punctuation: [
+              ':', ',', '[', ']', '(', ')', '!',
+            ],
+            delimiters: [
+              '\n', ' ', '\r', '\t',
+            ],
+            greedyMatchers: [
+              { type: 'STRING', startsWith: '"', endsWith: '"', escapesWith: '\\' },
+            ],
+          },
+        },
       ],
     });
     const str = `
-    type Query {
+    type Mutation {
       """
-      Gets the thing.
+      Does the thing.
       """
-      geThing(id: ID!): Thing @scope(has: ["things.read"])
+      doTheThing(id: ID!): Thing! @scope(has: ["things.do"])
     }
     `;
     const tokens = tokenizer.tokenize(str);
-    console.log(tokens);
+    expect(tokens).to.eql([
+      { value: 'type', type: 'KEYWORD', position: 5 },
+      { value: 'Mutation', type: 'IDENTIFIER', position: 10 },
+      { value: '{', type: 'PUNCTUATION', position: 19 },
+      { value: '"""\n      Does the thing.\n      """', type: 'COMMENT', position: 27 },
+      { value: 'doTheThing', type: 'IDENTIFIER', position: 69 },
+      { value: '(', type: 'PUNCTUATION', position: 79 },
+      { value: 'id', type: 'IDENTIFIER', position: 80 },
+      { value: ':', type: 'PUNCTUATION', position: 82 },
+      { value: 'ID', type: 'IDENTIFIER', position: 84 },
+      { value: '!', type: 'PUNCTUATION', position: 86 },
+      { value: ')', type: 'PUNCTUATION', position: 87 },
+      { value: ':', type: 'UNKNOWN', position: 88 },
+      { value: 'Thing', type: 'IDENTIFIER', position: 90 },
+      { value: '!', type: 'PUNCTUATION', position: 95 },
+      { value: '@scope', type: 'DIRECTIVE', position: 97 },
+      { value: '(', type: 'PUNCTUATION', position: 103 },
+      { value: 'has', type: 'IDENTIFIER', position: 104 },
+      { value: ':', type: 'PUNCTUATION', position: 107 },
+      { value: '[', type: 'PUNCTUATION', position: 109 },
+      { value: '"things.do"', type: 'STRING', position: 110 },
+      { value: ']', type: 'PUNCTUATION', position: 121 },
+      { value: ')', type: 'PUNCTUATION', position: 122 },
+      { value: '}', type: 'PUNCTUATION', position: 128 },
+    ]);
   });
 });
